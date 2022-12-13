@@ -64,16 +64,15 @@ The keys for the metadata are the following:
 metadata = {}
 
 """Properties that Structure produces."""
-# metadata["results"] = {
-#     "total_energy": {
-#         "calculation": [
-#             "energy",
-#             "optimization",
-#         ],
-#         "description": "The total energy",
-#         "dimensionality": "scalar",
-#         "property": "total energy#Structure#{model}",
-#         "type": "float",
-#         "units": "E_h",
-#     },
-# }
+metadata["results"] = {
+    "total energy": {
+        "calculation": [
+            "optimization",
+        ],
+        "description": "The total energy",
+        "dimensionality": "scalar",
+        "property": "total energy#Structure#{model}",
+        "type": "float",
+        "units": "E_h",
+    },
+}

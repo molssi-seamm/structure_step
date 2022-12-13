@@ -33,8 +33,8 @@ class StructureStep(object):
 
     my_description = {
         "description": "An interface for Structure",
-        "group": "Simulations",
-        "name": "Structure",
+        "group": "Results",
+        "name": "Structure(s)",
     }
 
     def __init__(self, flowchart=None, gui=None):

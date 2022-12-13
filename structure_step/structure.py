@@ -60,11 +60,7 @@ class Structure(seamm.Node):
     """
 
     def __init__(
-        self,
-        flowchart=None,
-        title="Structure",
-        extension=None,
-        logger=logger
+        self, flowchart=None, title="Structure", extension=None, logger=logger
     ):
         """A step for Structure in a SEAMM flowchart.
 
@@ -91,7 +87,7 @@ class Structure(seamm.Node):
 
         super().__init__(
             flowchart=flowchart,
-            title="Structure",
+            title="Structure(s)",
             extension=extension,
             module=__name__,
             logger=logger,

@@ -26,7 +26,7 @@ SEAMM Structure Plug-in
    :target: https://pypi.python.org/pypi/structure_step
    :alt: PyPi VERSION
 
-A SEAMM plug-in for optimizing a structure of ensemble of structures
+A SEAMM plug-in for optimizing a structure or ensemble of structures
 
 * Free software: BSD-3-Clause
 * Documentation: https://molssi-seamm.github.io/structure_step/index.html
