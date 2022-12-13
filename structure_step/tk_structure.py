@@ -151,30 +151,36 @@ class TkStructure(seamm.TkNode):
             h=h,
         )
 
-        self.models = {}
-        self.computational_models = {}
+        self._metadata = {}
+        self._computational_models = {}
+        self._base_models = {}
+        self._models = {}
+        self._parameterizations = {}
 
         # Get the information about the computational models
         if have_dftbplus and "computational models" in dftbplus_step.metadata:
-            deep_update(self.models, dftbplus_step.metadata["computational models"])
+            deep_update(self._metadata, dftbplus_step.metadata["computational models"])
         if have_mopac and "computational models" in mopac_step.metadata:
-            deep_update(self.models, mopac_step.metadata["computational models"])
+            deep_update(self._metadata, mopac_step.metadata["computational models"])
 
-    def _change_base_model(self):
+    def _change_base_model(self, event=None):
         """Handle changing the base model, i.e. Hartree-Fock or DFT."""
-        pass
+        base_model = self["base model"].get()
+        print(f"{base_model=}")
 
-    def _change_basis_set(self):
+    def _change_basis_set(self, event=None):
         """Handle changing the basis set or parameterization."""
-        pass
+        basis_set = self["basis set"].get()
+        print(f"{basis_set=}")
 
-    def _change_elements(self):
+    def _change_elements(self, event=None):
         """Handle changing the elements needed."""
         pass
 
-    def _change_model(self):
+    def _change_model(self, event=None):
         """Handle changing the model, i.e. PM7, MP2, CCSD, or DFT functional."""
-        pass
+        model = self["model"].get()
+        print(f"{model=}")
 
     def create_dialog(self):
         """
@@ -200,6 +206,18 @@ class TkStructure(seamm.TkNode):
         P = self.node.parameters
 
         # Create frames for the various content
+        frame0 = self["element frame"] = ttk.LabelFrame(
+            frame,
+            borderwidth=4,
+            relief="sunken",
+            text="Elements that are needed",
+            labelanchor="n",
+            padding=10,
+        )
+        # and add the widgets
+        self["elements"] = P["elements"].widget(frame0)
+        self["elements"].grid(row=0, column=0, sticky=tk.EW)
+
         frame1 = self["main frame"] = ttk.LabelFrame(
             frame,
             borderwidth=4,
@@ -210,16 +228,21 @@ class TkStructure(seamm.TkNode):
         )
         # and add the widgets
         for key in structure_step.StructureParameters.parameters:
-            if key[0] != "_" and key not in ("results",):
+            if key[0] != "_" and key not in ("results", "elements"):
                 self[key] = P[key].widget(frame1)
 
         # Show which elements are available
         available = set()
-        for model, model_data in self.models.items():
-            if "methods" in model_data:
-                for method, method_data in model_data["methods"].items():
-                    if "parameterizations" in method_data:
-                        for parameterization, data in method_data[
+        for base_model, base_model_data in self._metadata.items():
+            self._base_models[base_model] = {"models": set()}
+            if "models" in base_model_data:
+                for model, model_data in base_model_data["models"].items():
+                    if "parameterizations" in model_data:
+                        self._models[model] = {
+                            "base_model": base_model,
+                            "parameterizations": set(),
+                        }
+                        for parameterization, data in model_data[
                             "parameterizations"
                         ].items():
                             if "optimization" in data and not data["optimization"]:
@@ -227,9 +250,23 @@ class TkStructure(seamm.TkNode):
                             if "elements" not in data:
                                 continue
                             elements = expand_range_list(data["elements"])
-                            cmodel = f"{model}/{method}/{parameterization}"
-                            tmp = self.computational_models[cmodel] = deepcopy(data)
+                            computational_model = f"{model}/{model}/{parameterization}"
+                            tmp = self._computational_models[
+                                computational_model
+                            ] = deepcopy(data)
                             tmp["elements"] = elements
+
+                            self._base_models[base_model]["models"].add(model)
+                            self._models[model]["parameterizations"].add(
+                                parameterization
+                            )
+                            self._parameterizations[parameterization] = {
+                                "base_model": base_model,
+                                "model": model,
+                                "elements": elements,
+                                "computational_model": computational_model,
+                                "data": tmp,
+                            }
                             available |= {atno_to_symbol[z] for z in elements}
 
         pt = self["elements"]
@@ -246,15 +283,26 @@ class TkStructure(seamm.TkNode):
         w.bind("<Return>", self._change_base_model)
         w.bind("<FocusOut>", self._change_base_model)
 
+        tmp = [*self._base_models.keys()]
+        w.combobox.config(values=sorted(tmp))
+
         w = self["model"]
         w.bind("<<ComboboxSelected>>", self._change_model)
         w.bind("<Return>", self._change_model)
         w.bind("<FocusOut>", self._change_model)
 
+        tmp = [*self._models.keys()]
+        w.combobox.config(values=sorted(tmp))
+
         w = self["basis set"]
         w.bind("<<ComboboxSelected>>", self._change_basis_set)
         w.bind("<Return>", self._change_basis_set)
         w.bind("<FocusOut>", self._change_basis_set)
+
+        tmp = set()
+        for data in self._models.values():
+            tmp |= data["parameterizations"]
+        w.combobox.config(values=sorted(tmp))
 
         # Optimization control
         frame2 = self["optking frame"] = ttk.LabelFrame(
@@ -332,35 +380,37 @@ class TkStructure(seamm.TkNode):
         P = self.node.parameters
 
         # What are we doing?
-        base_model = self["base model"].get()
-        model = self["model"].get()
-        basis_set = self["basis set"].get()
-
         approach = self["approach"].get()
+
+        # Setup the periodic table
+        eframe = self["element frame"]
+        eframe.grid(row=0, column=0, sticky=tk.EW)
 
         # Setup the main frame
         main = self["main frame"]
-        main.grid(row=0, column=0, sticky=tk.EW)
+        main.grid(row=1, column=0, sticky=tk.EW)
         for slave in main.grid_slaves():
             slave.grid_forget()
 
         row = 0
-        self["elements"].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
-        main.columnconfigure(1, weight=1)
-        main.rowconfigure(row, weight=1)
-        row += 1
-        self["approach"].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
-        row += 1
+        widgets = []
+        for key in ("base model", "model", "basis set", "approach"):
+            self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
+            widgets.append(self[key])
+            row += 1
+        # Align the labels
+        sw.align_labels(widgets, sticky=tk.E)
+
         if approach == "optimization":
             self["optimizer"].grid(row=row, column=1, sticky=tk.EW)
             row += 1
             main.columnconfigure(0, minsize=40)
 
-            optimizer = self["optimizer"].get()
-            if optimizer == "default" or optimizer == "OptKing":
-                self["optking frame"].grid(row=0, column=1, sticky=tk.EW)
+            # optimizer = self["optimizer"].get()
+            # if optimizer == "default" or optimizer == "OptKing":
+            #     self["optking frame"].grid(row=0, column=1, sticky=tk.EW)
 
-        self["handling frame"].grid(row=1, column=0, columnspan=2)
+        self["handling frame"].grid(row=2, column=0, sticky=tk.EW)
 
         # Setup the results if there are any
         # NB. TO-DO may need to set self.calculation and self.methods and re-setup the
