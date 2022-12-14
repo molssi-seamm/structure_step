@@ -156,6 +156,10 @@ class TkStructure(seamm.TkNode):
         self._base_models = {}
         self._models = {}
         self._parameterizations = {}
+        self._current_base_model = None
+        self._current_elements = None
+        self._current_model = None
+        self._current_parameterization = None
 
         # Get the information about the computational models
         if have_dftbplus and "computational models" in dftbplus_step.metadata:
@@ -166,21 +170,158 @@ class TkStructure(seamm.TkNode):
     def _change_base_model(self, event=None):
         """Handle changing the base model, i.e. Hartree-Fock or DFT."""
         base_model = self["base model"].get()
-        print(f"{base_model=}")
+        if base_model != self._current_base_model:
+            # print(f"{base_model=}")
+            self._current_base_model = base_model
+            model_widget = self["model"]
+            model = model_widget.get()
+            if base_model == "any":
+                models = [*self._base_models.keys()]
+            else:
+                models = self._base_models[base_model]["models"]
+            model_widget.config(values=["any", *sorted(models)])
+            if model not in models:
+                # If only one model, use it
+                if len(models) == 1:
+                    model_widget.set(models[0])
+                else:
+                    model_widget.set("any")
+                self._change_model()
 
-    def _change_basis_set(self, event=None):
-        """Handle changing the basis set or parameterization."""
-        basis_set = self["basis set"].get()
-        print(f"{basis_set=}")
+    def _change_computational_model(self, event=None, what=None):
+        """Handle a change in any part of the computational model.
+
+        Parameters
+        ----------
+        what : str
+            What was changed: "base model", "model", or "parameterization"
+        event : Object = None
+            Event from the windowing system. Not used.
+        """
+        new_base_model = self._current_base_model
+        new_model = self._current_model
+        new_parameterization = self._current_parameterization
+
+        if what == "base model":
+            base_model = self["base model"].get()
+        elif what == "model":
+            model = self["model"].get()
+        elif what == "parameterization":
+            parameterization = self["parameterization"].get()
+        else:
+            raise RuntimeError(
+                f"Cannot handle changing '{what}' in the computational model"
+            )
+
+        while (
+            base_model != new_base_model
+            or model != new_model
+            or parameterization != new_parameterization
+        ):
+            if base_model != new_base_model:
+                # print(f"{base_model=}")
+                model_widget = self["model"]
+                model = model_widget.get()
+                if base_model == "any":
+                    models = [*self._base_models.keys()]
+                else:
+                    models = self._base_models[base_model]["models"]
+                if model not in models:
+                    # If only one model, use it
+                    if len(models) == 1:
+                        model = models[0]
+                    else:
+                        model = "any"
+
+            if model != new_model:
+                if model != new_model:
+                    # print(f"{model=}")
+                    new_model = model
+                    widget = self["parameterization"]
+                    parameterization = widget.get()
+                    if model == "any":
+                        base_model = self["base model"].get()
+                        if base_model == "any":
+                            parameterizations = set()
+                            for data in self._models.values():
+                                parameterizations |= data["parameterizations"]
+                        else:
+                            models = self._base_models[base_model]["models"]
+                            parameterizations = set()
+                            for tmp in models:
+                                parameterizations |= self._models[tmp]["parameterizations"]
+                    else:
+                        parameterizations = self._models[model]["parameterizations"]
+                        # Does the base model need to be changed?
+                        base_model = self._models[model]["base model"]
+                        if base_model != self["base model"].get():
+                            self["base model"].set(base_model)
+                            self._change_base_model()
+                    widget.config(values=["any", *sorted(parameterizations)])
+                    if parameterization not in parameterizations:
+                        # If only one parameterization use it
+                        if len(parameterizations) == 1:
+                            widget.set(parameterizations.pop())
+                        else:
+                            widget.set("any")
+                        self._change_parameterization()
+
+
 
     def _change_elements(self, event=None):
         """Handle changing the elements needed."""
-        pass
+        pt = self["elements"]
+        elements = set(pt.get())
+        print(f"change elements --> {elements}")
+        # possibilities = []
 
     def _change_model(self, event=None):
         """Handle changing the model, i.e. PM7, MP2, CCSD, or DFT functional."""
         model = self["model"].get()
-        print(f"{model=}")
+        if model != self._current_model:
+            # print(f"{model=}")
+            self._current_model = model
+            widget = self["parameterization"]
+            parameterization = widget.get()
+            if model == "any":
+                base_model = self["base model"].get()
+                if base_model == "any":
+                    parameterizations = set()
+                    for data in self._models.values():
+                        parameterizations |= data["parameterizations"]
+                else:
+                    models = self._base_models[base_model]["models"]
+                    parameterizations = set()
+                    for tmp in models:
+                        parameterizations |= self._models[tmp]["parameterizations"]
+            else:
+                parameterizations = self._models[model]["parameterizations"]
+                # Does the base model need to be changed?
+                base_model = self._models[model]["base model"]
+                if base_model != self["base model"].get():
+                    self["base model"].set(base_model)
+                    self._change_base_model()
+            widget.config(values=["any", *sorted(parameterizations)])
+            if parameterization not in parameterizations:
+                # If only one parameterization use it
+                if len(parameterizations) == 1:
+                    widget.set(parameterizations.pop())
+                else:
+                    widget.set("any")
+                self._change_parameterization()
+
+    def _change_parameterization(self, event=None):
+        """Handle changing the basis set or parameterization."""
+        parameterization = self["parameterization"].get()
+        if parameterization != self._current_parameterization:
+            # print(f"{parameterization=}")
+            self._current_parameterization = parameterization
+            if parameterization != "any":
+                # Does the model need to be changed?
+                model = self._parameterizations[parameterization]["model"]
+                if model != self["model"].get():
+                    self["model"].set(model)
+                    self._change_model()
 
     def create_dialog(self):
         """
@@ -255,19 +396,22 @@ class TkStructure(seamm.TkNode):
                                 computational_model
                             ] = deepcopy(data)
                             tmp["elements"] = elements
+                            tmp["symbols"] = {atno_to_symbol[z] for z in elements}
 
                             self._base_models[base_model]["models"].add(model)
                             self._models[model]["parameterizations"].add(
                                 parameterization
                             )
+                            self._models[model]["base model"] = base_model
                             self._parameterizations[parameterization] = {
-                                "base_model": base_model,
+                                "base model": base_model,
                                 "model": model,
                                 "elements": elements,
+                                "symbols": tmp["symbols"],
                                 "computational_model": computational_model,
                                 "data": tmp,
                             }
-                            available |= {atno_to_symbol[z] for z in elements}
+                            available |= tmp["symbols"]
 
         pt = self["elements"]
         elements = set(pt.elements)
@@ -279,30 +423,44 @@ class TkStructure(seamm.TkNode):
 
         # And as the user changes the computational model
         w = self["base model"]
-        w.bind("<<ComboboxSelected>>", self._change_base_model)
+        self._current_base_model = w.get()
+        w.bind(
+            "<<ComboboxSelected>>",
+            lambda event, c="base model": self._change_computational_model(event, c),
+        )
         w.bind("<Return>", self._change_base_model)
         w.bind("<FocusOut>", self._change_base_model)
 
         tmp = [*self._base_models.keys()]
-        w.combobox.config(values=sorted(tmp))
+        w.combobox.config(values=["any", *sorted(tmp)])
 
         w = self["model"]
-        w.bind("<<ComboboxSelected>>", self._change_model)
+        self._current_model = w.get()
+        w.bind(
+            "<<ComboboxSelected>>",
+            lambda event, c="model": self._change_computational_model(event, c),
+        )
         w.bind("<Return>", self._change_model)
         w.bind("<FocusOut>", self._change_model)
 
         tmp = [*self._models.keys()]
-        w.combobox.config(values=sorted(tmp))
+        w.combobox.config(values=["any", *sorted(tmp)])
 
-        w = self["basis set"]
-        w.bind("<<ComboboxSelected>>", self._change_basis_set)
-        w.bind("<Return>", self._change_basis_set)
-        w.bind("<FocusOut>", self._change_basis_set)
+        w = self["parameterization"]
+        self._current_parameterization = w.get()
+        w.bind(
+            "<<ComboboxSelected>>",
+            lambda event, c="parameterization": self._change_computational_model(
+                event, c
+            ),
+        )
+        w.bind("<Return>", self._change_parameterization)
+        w.bind("<FocusOut>", self._change_parameterization)
 
         tmp = set()
         for data in self._models.values():
             tmp |= data["parameterizations"]
-        w.combobox.config(values=sorted(tmp))
+        w.combobox.config(values=["any", *sorted(tmp)])
 
         # Optimization control
         frame2 = self["optking frame"] = ttk.LabelFrame(
@@ -394,7 +552,7 @@ class TkStructure(seamm.TkNode):
 
         row = 0
         widgets = []
-        for key in ("base model", "model", "basis set", "approach"):
+        for key in ("base model", "model", "parameterization", "approach"):
             self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
             widgets.append(self[key])
             row += 1

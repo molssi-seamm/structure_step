@@ -96,7 +96,7 @@ class StructureParameters(seamm.Parameters):
             "help_text": "The elements to include.",
         },
         "base model": {
-            "default": "default",
+            "default": "any",
             "kind": "enumeration",
             "default_units": "",
             "enumeration": tuple(),
@@ -105,7 +105,7 @@ class StructureParameters(seamm.Parameters):
             "help_text": "The base model for the simulation.",
         },
         "model": {
-            "default": "default",
+            "default": "any",
             "kind": "enumeration",
             "default_units": "",
             "enumeration": tuple(),
@@ -113,8 +113,8 @@ class StructureParameters(seamm.Parameters):
             "description": "model:",
             "help_text": "The model for the simulation.",
         },
-        "basis set": {
-            "default": "default",
+        "parameterization": {
+            "default": "any",
             "kind": "enumeration",
             "default_units": "",
             "enumeration": tuple(),
