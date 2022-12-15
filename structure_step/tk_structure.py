@@ -181,9 +181,14 @@ class TkStructure(seamm.TkNode):
         # print(60 * "-")
         # print(f"{event=} {what=}")
         # print(60 * "-")
+
         base_model = new_base_model = self._current_base_model
         model = new_model = self._current_model
         parameterization = new_parameterization = self._current_parameterization
+
+        # Any elements that the user requires
+        pt = self["elements"]
+        required_elements = set(pt.get())
 
         if what == "base model":
             base_model = self["base model"].get()
@@ -201,46 +206,74 @@ class TkStructure(seamm.TkNode):
             or model != new_model
             or parameterization != new_parameterization
         ):
-            # print(f"\t     base model = {base_model}\t{new_base_model}")
-            # print(f"\t          model = {model}\t{new_model}")
-            # print(f"\tparametrization = {parameterization}\t{new_parameterization}")
-            # print("")
+            print(f"\t     base model = {base_model}\t{new_base_model}")
+            print(f"\t          model = {model}\t{new_model}")
+            print(f"\tparametrization = {parameterization}\t{new_parameterization}")
+            print("")
 
             if base_model != new_base_model:
-                # print(f"{base_model=}")
-                new_base_model = base_model
                 if base_model == "any":
-                    models = [*self._base_models.keys()]
+                    tmp_models = [*self._base_models.keys()]
                     model = "any"
                     parameterization = "any"
                 else:
-                    models = self._base_models[base_model]["models"]
+                    tmp_models = self._base_models[base_model]["models"]
+
+                if model not in tmp_models:
+                    model = "any"
+                if model != "any":
+                    tmp_models = [model]
+
+                # Check for required elements
+                base_models = set()
+                models = set()
+                parameterizations = set()
+                for tmp_model in tmp_models:
+                    for tmp_param in self._models[tmp_model]["parameterizations"]:
+                        data = self._parameterizations[tmp_param]
+                        if required_elements <= data["symbols"]:
+                            base_models.add(data["base model"])
+                            models.add(data["model"])
+                            parameterizations.add(tmp_param)
+
+                if base_model not in base_models:
+                    # If only one base model, use it
+                    if len(base_models) == 1:
+                        model = [*base_models][0]
+                    else:
+                        model = "any"
+                new_base_model = base_model
+
                 if model not in models:
                     # If only one model, use it
                     if len(models) == 1:
-                        model = models[0]
+                        model = [*models][0]
                     else:
                         model = "any"
 
             if model != new_model:
-                # print(f"{model=}")
                 new_model = model
                 if model == "any":
                     if base_model == "any":
-                        parameterizations = set()
-                        for data in self._models.values():
-                            parameterizations |= data["parameterizations"]
-                        parameterization = "any"
+                        tmp_models = [*self._base_models.keys()]
                     else:
-                        models = self._base_models[base_model]["models"]
-                        parameterizations = set()
-                        for tmp in models:
-                            parameterizations |= self._models[tmp]["parameterizations"]
+                        tmp_models = self._base_models[base_model]["models"]
                     parameterization = "any"
                 else:
-                    parameterizations = self._models[model]["parameterizations"]
-                    # Does the base model need to be changed?
-                    base_model = self._models[model]["base model"]
+                    tmp_models = [model]
+
+                # Check for required elements
+                base_models = set()
+                models = set()
+                parameterizations = set()
+                for tmp_model in tmp_models:
+                    for tmp_param in self._models[tmp_model]["parameterizations"]:
+                        data = self._parameterizations[tmp_param]
+                        if required_elements <= data["symbols"]:
+                            base_models.add(data["base model"])
+                            models.add(data["model"])
+                            parameterizations.add(tmp_param)
+
                 if parameterization not in parameterizations:
                     # If only one parameterization use it
                     if len(parameterizations) == 1:
@@ -249,44 +282,71 @@ class TkStructure(seamm.TkNode):
                         parameterization = "any"
 
             if parameterization != new_parameterization:
-                # print(f"{parameterization=}")
                 new_parameterization = parameterization
                 if parameterization != "any":
                     # Does the model need to be changed?
                     model = self._parameterizations[parameterization]["model"]
 
-        # print(f"\t     base model = {new_base_model}")
-        # print(f"\t          model = {new_model}")
-        # print(f"\tparametrization = {new_parameterization}")
+        print(f"\t     base model = {new_base_model}")
+        print(f"\t          model = {new_model}")
+        print(f"\tparametrization = {new_parameterization}")
 
         # Get the models and parameterizations given the model
         if base_model == "any":
             models = set()
             for data in self._base_models.values():
-                models |= data["models"]
+                for tmp_model in data["models"]:
+                    found = False
+                    for tmp in self._models[tmp_model]["parameterizations"]:
+                        if required_elements <= self._parameterizations[tmp]["symbols"]:
+                            found = True
+                            break
+                    if found:
+                        models.add(tmp_model)
         else:
-            models = self._base_models[base_model]["models"]
+            models = set()
+            for tmp_model in self._base_models[base_model]["models"]:
+                found = False
+                for tmp in self._models[tmp_model]["parameterizations"]:
+                    if required_elements <= self._parameterizations[tmp]["symbols"]:
+                        found = True
+                        break
+                if found:
+                    models.add(tmp_model)
 
+        parameterizations = set()
         if model == "any":
-            parameterizations = set()
-            for tmp in models:
-                parameterizations |= self._models[tmp]["parameterizations"]
+            for tmp_model in models:
+                for tmp in self._models[tmp_model]["parameterizations"]:
+                    if required_elements <= self._parameterizations[tmp]["symbols"]:
+                        parameterizations.add(tmp)
         else:
             if parameterization == "any":
-                parameterizations = self._models[model]["parameterizations"]
+                for tmp in self._models[model]["parameterizations"]:
+                    if required_elements <= self._parameterizations[tmp]["symbols"]:
+                        parameterizations.add(tmp)
             else:
-                parameterizations = [parameterization]
+                if (
+                    required_elements
+                    <= self._parameterizations[parameterization]["symbols"]
+                ):
+                    parameterizations.add(parameterization)
+
+        # print(f"\t          models = {models}")
+        # print(f"\tparametrizations = {parameterizations}")
 
         # Get the elements the selection covers ... and check it meets the requirements.
         coverage = set()
+        base_models = set()
+        models = set()
         for tmp in parameterizations:
+            base_models.add(self._parameterizations[tmp]["base model"])
+            models.add(self._parameterizations[tmp]["model"])
             coverage |= self._parameterizations[tmp]["symbols"]
-
-        pt = self["elements"]
-        required_elements = set(pt.get())
 
         if required_elements <= coverage:
             # Works, so proceed to set the widgets and current state
+            self["base model"].config(values=["any", *sorted(base_models)])
             self["base model"].set(base_model)
 
             self["model"].config(values=["any", *sorted(models)])
@@ -319,7 +379,6 @@ class TkStructure(seamm.TkNode):
         """Handle changing the elements needed."""
         pt = self["elements"]
         elements = set(pt.get())
-        print(f"change elements --> {elements}")
 
         base_model = self._current_base_model
         model = self._current_model
@@ -333,10 +392,6 @@ class TkStructure(seamm.TkNode):
                 parameterizations.add(tmp)
                 models.add(data["model"])
                 base_models.add(data["base model"])
-
-        print(f"{base_models=}")
-        print(f"{models=}")
-        print(f"{parameterizations=}")
 
         if len(parameterizations) == 0:
             msg = (
@@ -408,6 +463,7 @@ class TkStructure(seamm.TkNode):
             coverage |= self._parameterizations[tmp]["symbols"]
 
         # Set the widgets
+        self["base model"].config(values=["any", *sorted(base_models)])
         self["base model"].set(base_model)
 
         self["model"].config(values=["any", *sorted(models)])
