@@ -182,6 +182,143 @@ class TkStructure(seamm.TkNode):
         # print(f"{event=} {what=}")
         # print(60 * "-")
 
+        # Any elements that the user requires
+        pt = self["elements"]
+        required_elements = set(pt.get())
+
+        base_model = self["base model"].get()
+        model = self["model"].get()
+        parameterization = self["parameterization"].get()
+
+        if what == "base model":
+            pass
+        elif what == "model":
+            pass
+        elif what == "parameterization":
+            pass
+        else:
+            raise RuntimeError(
+                f"Cannot handle changing '{what}' in the computational model"
+            )
+
+        print(f"\t     base model = {base_model}")
+        print(f"\t          model = {model}")
+        print(f"\tparametrization = {parameterization}")
+        print("")
+
+        if what == "base model" and base_model != self._current_base_model:
+            # The base model was changed so reset the model and parameterization
+            model = "any"
+            parameterization = "any"
+
+        if what == "model" and model != self._current_model:
+            # The model was changed so reset the parameterization
+            parameterization = "any"
+
+        if base_model == "any":
+            base_models = set(self._base_models.keys())
+            tmp_models = set()
+            for values in self._base_models.values():
+                tmp_models |= values["models"]
+        else:
+            tmp_models = set(self._base_models[base_model]["models"])
+
+        if model != "any":
+            if model not in tmp_models:
+                raise RuntimeError(
+                    f"Model '{model}' not in the models for base model {base_model}"
+                )
+            tmp_models = set([model])
+
+        # Check for required elements
+
+        base_models = set()
+        models = set()
+        parameterizations = set()
+
+        coverage = set()
+        if parameterization == "any":
+            for tmp_model in tmp_models:
+                for tmp_param in self._models[tmp_model]["parameterizations"]:
+                    data = self._parameterizations[tmp_param]
+                    if required_elements <= data["symbols"]:
+                        base_models.add(data["base model"])
+                        models.add(data["model"])
+                        parameterizations.add(tmp_param)
+                        coverage |= self._parameterizations[tmp_param]["symbols"]
+        else:
+            data = self._parameterizations[parameterization]
+            if required_elements <= data["symbols"]:
+                base_models.add(data["base model"])
+                models.add(data["model"])
+                parameterizations.add(parameterization)
+                coverage |= self._parameterizations[parameterization]["symbols"]
+
+        if coverage < required_elements:
+            # The computational models do not cover the required elements
+            computational_model = f"{base_model}/{model}/{parameterization}"
+            missing = ", ".join(sorted(required_elements - coverage))
+            msg = (
+                f"The chosen computational model '{computational_model}' does not "
+                f"cover all the elements requested. Missing are {missing}"
+            )
+            tk.messagebox.showwarning(title="Not all elements covered", message=msg)
+
+            self["base model"].set(self._current_base_model)
+            self["model"].set(self._current_model)
+            self["parameterization"].set(self._current_parameterization)
+
+            return
+
+        if base_model != "any" and base_model not in base_models:
+            raise RuntimeError(
+                f"Base model '{model}' not in the base models. How is that possible?"
+            )
+
+        # If only one base model, use it
+        if base_model == "any" and len(base_models) == 1:
+            base_model = [*base_models][0]
+
+        # If only one model, use it
+        print(f"{models=}")
+        if what != "model" and len(models) == 1:
+            model = [*models][0]
+
+        if what != "parameterization" and len(parameterizations) == 1:
+            parameterization = [*parameterizations][0]
+
+        # print(f"\t          models = {models}")
+        # print(f"\tparametrizations = {parameterizations}")
+
+        self["base model"].set(base_model)
+
+        self["model"].config(values=["any", *sorted(models)])
+        self["model"].set(model)
+
+        self["parameterization"].config(values=["any", *sorted(parameterizations)])
+        self["parameterization"].set(parameterization)
+
+        pt.set_text_color("all", "black")
+        pt.set_text_color(coverage, "green")
+
+        self._current_base_model = base_model
+        self._current_model = model
+        self._current_parameterization = parameterization
+
+    def _change_computational_model_sv(self, event=None, what=None):
+        """Handle a change in any part of the computational model.
+
+        Parameters
+        ----------
+        what : str
+            What was changed: "base model", "model", or "parameterization"
+        event : Object = None
+            Event from the windowing system. Not used.
+        """
+        # print(60 * "-")
+        # print(f"{event=} {what=}")
+        # print(60 * "-")
+
         base_model = new_base_model = self._current_base_model
         model = new_model = self._current_model
         parameterization = new_parameterization = self._current_parameterization
