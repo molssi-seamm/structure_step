@@ -26,4 +26,4 @@ dependencies:
     # Documentation
     - rinohtype
     - sphinx-rtd-theme
-    - pystemmer
+    # - pystemmer
