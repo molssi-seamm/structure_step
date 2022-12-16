@@ -201,10 +201,10 @@ class TkStructure(seamm.TkNode):
                 f"Cannot handle changing '{what}' in the computational model"
             )
 
-        print(f"\t     base model = {base_model}")
-        print(f"\t          model = {model}")
-        print(f"\tparametrization = {parameterization}")
-        print("")
+        # print(f"\t     base model = {base_model}")
+        # print(f"\t          model = {model}")
+        # print(f"\tparametrization = {parameterization}")
+        # print("")
 
         if what == "base model" and base_model != self._current_base_model:
             # The base model was changed so reset the model and parameterization
@@ -237,21 +237,24 @@ class TkStructure(seamm.TkNode):
         parameterizations = set()
 
         coverage = set()
-        if parameterization == "any":
-            for tmp_model in tmp_models:
-                for tmp_param in self._models[tmp_model]["parameterizations"]:
-                    data = self._parameterizations[tmp_param]
-                    if required_elements <= data["symbols"]:
-                        base_models.add(data["base model"])
-                        models.add(data["model"])
-                        parameterizations.add(tmp_param)
-                        coverage |= self._parameterizations[tmp_param]["symbols"]
-        else:
+        for tmp_model in tmp_models:
+            for tmp_param in self._models[tmp_model]["parameterizations"]:
+                data = self._parameterizations[tmp_param]
+                if required_elements <= data["symbols"]:
+                    base_models.add(data["base model"])
+                    models.add(data["model"])
+                    parameterizations.add(tmp_param)
+                    coverage |= self._parameterizations[tmp_param]["symbols"]
+
+        if parameterization != "any":
+            # Have a chosen parameterization, so be more specific.
+            base_models = set()
+            models = set()
+            coverage = set()
             data = self._parameterizations[parameterization]
             if required_elements <= data["symbols"]:
                 base_models.add(data["base model"])
                 models.add(data["model"])
-                parameterizations.add(parameterization)
                 coverage |= self._parameterizations[parameterization]["symbols"]
 
         if coverage < required_elements:
@@ -280,7 +283,7 @@ class TkStructure(seamm.TkNode):
             base_model = [*base_models][0]
 
         # If only one model, use it
-        print(f"{models=}")
+        # print(f"{models=}")
         if what != "model" and len(models) == 1:
             model = [*models][0]
 
@@ -304,213 +307,6 @@ class TkStructure(seamm.TkNode):
         self._current_base_model = base_model
         self._current_model = model
         self._current_parameterization = parameterization
-
-    def _change_computational_model_sv(self, event=None, what=None):
-        """Handle a change in any part of the computational model.
-
-        Parameters
-        ----------
-        what : str
-            What was changed: "base model", "model", or "parameterization"
-        event : Object = None
-            Event from the windowing system. Not used.
-        """
-        # print(60 * "-")
-        # print(f"{event=} {what=}")
-        # print(60 * "-")
-
-        base_model = new_base_model = self._current_base_model
-        model = new_model = self._current_model
-        parameterization = new_parameterization = self._current_parameterization
-
-        # Any elements that the user requires
-        pt = self["elements"]
-        required_elements = set(pt.get())
-
-        if what == "base model":
-            base_model = self["base model"].get()
-        elif what == "model":
-            model = self["model"].get()
-        elif what == "parameterization":
-            parameterization = self["parameterization"].get()
-        else:
-            raise RuntimeError(
-                f"Cannot handle changing '{what}' in the computational model"
-            )
-
-        while (
-            base_model != new_base_model
-            or model != new_model
-            or parameterization != new_parameterization
-        ):
-            print(f"\t     base model = {base_model}\t{new_base_model}")
-            print(f"\t          model = {model}\t{new_model}")
-            print(f"\tparametrization = {parameterization}\t{new_parameterization}")
-            print("")
-
-            if base_model != new_base_model:
-                if base_model == "any":
-                    tmp_models = [*self._base_models.keys()]
-                    model = "any"
-                    parameterization = "any"
-                else:
-                    tmp_models = self._base_models[base_model]["models"]
-
-                if model not in tmp_models:
-                    model = "any"
-                if model != "any":
-                    tmp_models = [model]
-
-                # Check for required elements
-                base_models = set()
-                models = set()
-                parameterizations = set()
-                for tmp_model in tmp_models:
-                    for tmp_param in self._models[tmp_model]["parameterizations"]:
-                        data = self._parameterizations[tmp_param]
-                        if required_elements <= data["symbols"]:
-                            base_models.add(data["base model"])
-                            models.add(data["model"])
-                            parameterizations.add(tmp_param)
-
-                if base_model not in base_models:
-                    # If only one base model, use it
-                    if len(base_models) == 1:
-                        model = [*base_models][0]
-                    else:
-                        model = "any"
-                new_base_model = base_model
-
-                if model not in models:
-                    # If only one model, use it
-                    if len(models) == 1:
-                        model = [*models][0]
-                    else:
-                        model = "any"
-
-            if model != new_model:
-                new_model = model
-                if model == "any":
-                    if base_model == "any":
-                        tmp_models = [*self._base_models.keys()]
-                    else:
-                        tmp_models = self._base_models[base_model]["models"]
-                    parameterization = "any"
-                else:
-                    tmp_models = [model]
-
-                # Check for required elements
-                base_models = set()
-                models = set()
-                parameterizations = set()
-                for tmp_model in tmp_models:
-                    for tmp_param in self._models[tmp_model]["parameterizations"]:
-                        data = self._parameterizations[tmp_param]
-                        if required_elements <= data["symbols"]:
-                            base_models.add(data["base model"])
-                            models.add(data["model"])
-                            parameterizations.add(tmp_param)
-
-                if parameterization not in parameterizations:
-                    # If only one parameterization use it
-                    if len(parameterizations) == 1:
-                        parameterization = [*parameterizations][0]
-                    else:
-                        parameterization = "any"
-
-            if parameterization != new_parameterization:
-                new_parameterization = parameterization
-                if parameterization != "any":
-                    # Does the model need to be changed?
-                    model = self._parameterizations[parameterization]["model"]
-
-        print(f"\t     base model = {new_base_model}")
-        print(f"\t          model = {new_model}")
-        print(f"\tparametrization = {new_parameterization}")
-
-        # Get the models and parameterizations given the model
-        if base_model == "any":
-            models = set()
-            for data in self._base_models.values():
-                for tmp_model in data["models"]:
-                    found = False
-                    for tmp in self._models[tmp_model]["parameterizations"]:
-                        if required_elements <= self._parameterizations[tmp]["symbols"]:
-                            found = True
-                            break
-                    if found:
-                        models.add(tmp_model)
-        else:
-            models = set()
-            for tmp_model in self._base_models[base_model]["models"]:
-                found = False
-                for tmp in self._models[tmp_model]["parameterizations"]:
-                    if required_elements <= self._parameterizations[tmp]["symbols"]:
-                        found = True
-                        break
-                if found:
-                    models.add(tmp_model)
-
-        parameterizations = set()
-        if model == "any":
-            for tmp_model in models:
-                for tmp in self._models[tmp_model]["parameterizations"]:
-                    if required_elements <= self._parameterizations[tmp]["symbols"]:
-                        parameterizations.add(tmp)
-        else:
-            if parameterization == "any":
-                for tmp in self._models[model]["parameterizations"]:
-                    if required_elements <= self._parameterizations[tmp]["symbols"]:
-                        parameterizations.add(tmp)
-            else:
-                if (
-                    required_elements
-                    <= self._parameterizations[parameterization]["symbols"]
-                ):
-                    parameterizations.add(parameterization)
-
-        # print(f"\t          models = {models}")
-        # print(f"\tparametrizations = {parameterizations}")
-
-        # Get the elements the selection covers ... and check it meets the requirements.
-        coverage = set()
-        base_models = set()
-        models = set()
-        for tmp in parameterizations:
-            base_models.add(self._parameterizations[tmp]["base model"])
-            models.add(self._parameterizations[tmp]["model"])
-            coverage |= self._parameterizations[tmp]["symbols"]
-
-        if required_elements <= coverage:
-            # Works, so proceed to set the widgets and current state
-            self["base model"].config(values=["any", *sorted(base_models)])
-            self["base model"].set(base_model)
-
-            self["model"].config(values=["any", *sorted(models)])
-            self["model"].set(model)
-
-            self["parameterization"].config(values=["any", *sorted(parameterizations)])
-            self["parameterization"].set(parameterization)
-
-            pt.set_text_color("all", "black")
-            pt.set_text_color(coverage, "green")
-
-            self._current_base_model = base_model
-            self._current_model = model
-            self._current_parameterization = parameterization
-        else:
-            # The computational models do not cover the required elements
-            computational_model = f"{base_model}/{model}/{parameterization}"
-            missing = ", ".join(sorted(required_elements - coverage))
-            msg = (
-                f"The chosen computational model '{computational_model}' does not "
-                f"cover all the elements requested. Missing are {missing}"
-            )
-            tk.messagebox.showwarning(title="Not all elements covered", message=msg)
-
-            self["base model"].set(self._current_base_model)
-            self["model"].set(self._current_model)
-            self["parameterization"].set(self._current_parameterization)
 
     def _change_elements(self, event=None):
         """Handle changing the elements needed."""
