@@ -9,6 +9,7 @@ A SEAMM plug-in for energy optimized structures
 # the structure_step package.
 
 from .structure import Structure  # noqa: F401, E501
+from .structure_parameters import StructureParameters  # noqa: F401, E501
 from .structure_step import StructureStep  # noqa: F401, E501
 from .tk_structure import TkStructure  # noqa: F401, E501
 

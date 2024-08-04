@@ -131,16 +131,47 @@ type : str
 units : str
     Optional units for the result. If present, the value should be in these units.
 """
-# metadata["results"] = {
-#     "total_energy": {
-#         "calculation": [
-#             "energy",
-#             "optimization",
-#         ],
-#         "description": "The total energy",
-#         "dimensionality": "scalar",
-#         "property": "total energy#Structure#{model}",
-#         "type": "float",
-#         "units": "E_h",
-#     },
-# }
+metadata["results"] = {
+    "energy": {
+        "description": "The total energy",
+        "dimensionality": "scalar",
+        "type": "float",
+        "units": "kJ/mol",
+    },
+    "nsteps": {
+        "description": "The number of steps in the optimization",
+        "dimensionality": "scalar",
+        "type": "int",
+        "units": "",
+    },
+    "converged": {
+        "description": "Whether the optimization converged",
+        "dimensionality": "scalar",
+        "type": "bool",
+        "units": "",
+    },
+    "rms_gradient": {
+        "description": "The root mean square of the gradients",
+        "dimensionality": "scalar",
+        "type": "float",
+        "units": "kJ/mol/Å",
+    },
+    "maximum_step": {
+        "description": "The maximum step size of any atom",
+        "dimensionality": "scalar",
+        "type": "float",
+        "units": "Å",
+    },
+    "maximum_gradient": {
+        "description": "The maximum gradient on any atom",
+        "dimensionality": "scalar",
+        "type": "float",
+        "units": "kJ/mol/Å",
+    },
+    "t_elapsed": {
+        "description": "The elapsed time for the optimization",
+        "dimensionality": "scalar",
+        "type": "float",
+        "units": "s",
+    },
+}

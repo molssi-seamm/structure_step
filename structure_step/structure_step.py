@@ -32,8 +32,8 @@ class StructureStep(object):
     """
 
     my_description = {
-        "description": "An interface for Structure",
-        "group": "Simulations",
+        "description": "An interface for predicting structures",
+        "group": "Properties",
         "name": "Structure",
     }
 
