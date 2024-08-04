@@ -1,4 +1,5 @@
 seamm
+seamm-ase
 seamm-util
 seamm-widgets
 tabulate

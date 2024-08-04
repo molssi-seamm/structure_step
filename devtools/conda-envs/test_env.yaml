@@ -25,6 +25,7 @@ dependencies:
 
   # Pip-only installs
   - pip:
+    - seamm-ase
     # Documentation
     - sphinx-copybutton
     - sphinxnotes-strike
