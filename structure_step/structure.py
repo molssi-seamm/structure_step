@@ -24,6 +24,7 @@ import structure_step
 import molsystem
 import seamm
 from seamm_ase import SEAMM_Calculator
+from seamm_geometric import geomeTRIC_mixin
 from seamm_util import Q_, units_class, getParser
 import seamm_util.printing as printing
 from seamm_util.printing import FormattedText as __
@@ -47,7 +48,7 @@ if path.exists():
     molsystem.add_properties_from_file(csv_file)
 
 
-class Structure(seamm.Node):
+class Structure(seamm.Node, geomeTRIC_mixin):
     """
     The non-graphical part of a Structure step in a flowchart.
 
@@ -100,7 +101,6 @@ class Structure(seamm.Node):
         -------
         None
         """
-        logger.setLevel(logging.DEBUG)
         logger.debug(f"Creating Structure {self}")
         self.subflowchart = seamm.Flowchart(
             parent=self, name="Structure", namespace=namespace
@@ -119,6 +119,7 @@ class Structure(seamm.Node):
         self._step = 0
         self._file_handler = None
         self._working_configuration = None
+        self._working_directory = None
         self._data = {}
         self._results = {}
         self._logfile = None
@@ -178,11 +179,11 @@ class Structure(seamm.Node):
         )
         length = len(tmp.splitlines()[0])
         text = "\n"
-        text += "Optimization".center(length)
+        text += "Optimization results".center(length)
         text += "\n"
         text += tmp
         text += "\n"
-        printer.important(__(text, indent=8 * " ", wrap=False, dedent=False))
+        printer.important(__(text, indent=11 * " ", wrap=False, dedent=False))
 
     def calculator(
         self,
@@ -432,9 +433,16 @@ class Structure(seamm.Node):
 
         Parameters
         ----------
-        P: dict
+        P : dict
             An optional dictionary of the current values of the control
             parameters.
+
+        short : bool
+            If True, return a short description of the step.
+
+        natoms : int
+            The number of atoms in the structure.
+
         Returns
         -------
         str
@@ -444,8 +452,11 @@ class Structure(seamm.Node):
             P = self.parameters.values_to_dict()
 
         if P["approach"] == "Optimization":
-            text = "The structure will be optimization using the "
-            text += "{optimizer} optimizer, converging to {convergence} "
+            if P["optimizer"].lower().endswith("/geometric"):
+                text = self.describe_geomeTRIC_optimizer(P=P)
+            else:
+                text = "The structure will be optimized using the "
+                text += "{optimizer} optimizer, converging to {convergence} "
 
             max_steps = P["max steps"]
             if natoms is not None and "natoms" in max_steps:
@@ -469,7 +480,7 @@ class Structure(seamm.Node):
         if not short:
             # Get the first real node
             node = self.subflowchart.get_node("1").next()
-            text += "\n\n"
+            text += "\n\nThe energy and forces will be calculated as follows:\n"
 
             # Now walk through the steps in the subflowchart...
             while node is not None:
@@ -617,15 +628,58 @@ class Structure(seamm.Node):
             context=seamm.flowchart_variables._data
         )
 
-        _, starting_configuration = self.get_system_configuration()
-        _, self._working_configuration = self.get_system_configuration(P)
-        n_atoms = starting_configuration.n_atoms
-
         # Have to fix formatting for printing...
         PP = dict(P)
         for key in PP:
             if isinstance(PP[key], units_class):
                 PP[key] = "{:~P}".format(PP[key])
+
+        # Get the final configuration
+        _, self._working_configuration = self.get_system_configuration(P)
+        n_atoms = self._working_configuration.n_atoms
+
+        # Print what we are doing
+        printer.important(
+            __(
+                self.description_text(PP, short=True, natoms=n_atoms),
+                indent=self.indent,
+            )
+        )
+
+        if P["approach"].lower() == "optimization":
+            if P["optimizer"].lower().endswith("/ase"):
+                self.run_ase_optimizer(P, PP)
+            elif P["optimizer"].lower().endswith("/geometric"):
+                self.run_geomeTRIC_optimizer(P, PP)
+            else:
+                raise ValueError(f"Unknown optimizer '{P['optimizer']}' in Structure")
+        else:
+            raise ValueError(f"Unknown approach '{P['approach']}' in Structure")
+
+        return next_node
+
+    def run_ase_optimizer(self, P, PP):
+        """Run a Structure step.
+
+        Parameters
+        ----------
+        P : dict
+            The current values of the parameters
+        PP : dict
+            The current values of the parameters, formatted for printing
+        """
+        self._data = {
+            "step": [],
+            "energy": [],
+            "max_force": [],
+            "rms_force": [],
+            "max_step": [],
+        }
+        self._last_coordinates = None
+        self._step = 0
+
+        _, starting_configuration = self.get_system_configuration()
+        n_atoms = starting_configuration.n_atoms
 
         # Print what we are doing
         printer.important(
@@ -649,29 +703,34 @@ class Structure(seamm.Node):
         max_steps = P["max steps"]
 
         # Optimize the structure
-        if P["optimizer"] == "BFGS":
+        optimizer = P["optimizer"][4:].lower()
+        if optimizer == "bfgs":
             optimizer = ASE_Optimize.BFGS(atoms, restart=wd / "bfgs.json", logfile=None)
-        elif P["optimizer"] == "LBFGS":
+        elif optimizer == "lbfgs":
             optimizer = ASE_Optimize.LBFGS(
                 atoms, restart=wd / "lbfgs.json", logfile=None
             )
-        elif P["optimizer"] == "FIRE":
+        elif optimizer == "fire":
             optimizer = ASE_Optimize.FIRE(atoms, restart=wd / "fire.json", logfile=None)
-        elif P["optimizer"] == "GPMin":
+        elif optimizer == "gpmin":
             optimizer = ASE_Optimize.GPMin(
                 atoms, restart=wd / "gpmin.json", logfile=None
             )
-        elif P["optimizer"] == "MDMin":
+        elif optimizer == "mdmin":
             optimizer = ASE_Optimize.MDMin(
                 atoms, restart=wd / "mdmin.json", logfile=None
             )
-        elif P["optimizer"] == "BFGSLineSearch":
+        elif optimizer == "bfgslinesearch":
             optimizer = ASE_Optimize.BFGSLineSearch(
                 atoms, restart=wd / "bfgsline.json", logfile=None
             )
-        elif P["optimizer"] == "LBFGSLineSearch":
+        elif optimizer == "lbfgslinesearch":
             optimizer = ASE_Optimize.LBFGSLineSearch(
                 atoms, restart=wd / "lbfgsline.json", logfile=None
+            )
+        else:
+            raise ValueError(
+                f"Unknown optimizer '{optimizer}' ({P['optimizer']}) in Structure"
             )
 
         convergence = P["convergence"].m_as("eV/Å")
@@ -687,7 +746,9 @@ class Structure(seamm.Node):
         tic = time.perf_counter_ns()
         try:
             converged = optimizer.run(fmax=convergence, steps=max_steps)
+            print(f"Converged = {converged}")
         except Exception as exception:  # noqa: F841
+            print(f"Exception: {exception}")
             converged = False
         finally:
             toc = time.perf_counter_ns()
@@ -731,8 +792,6 @@ class Structure(seamm.Node):
                 subdirectories = sorted(subdirectories)
                 for subdirectory in subdirectories[:-1]:
                     shutil.rmtree(subdirectory)
-
-        return next_node
 
     def set_id(self, node_id=()):
         """Sequentially number the subnodes"""
