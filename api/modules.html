@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Developer Documentation &#8212; SEAMM Structure Plug-in 2024.10.13+1.g7f3127b documentation</title>
+    <title>structure_step &#8212; SEAMM Structure Plug-in 2024.10.15 documentation</title>
   
   
   
@@ -38,17 +38,17 @@
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../_static/documentation_options.js?v=eb67d353"></script>
+    <script src="../_static/documentation_options.js?v=4ddceb86"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=f281be69"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'developer_guide/index';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api/modules';</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Installation" href="installation.html" />
-    <link rel="prev" title="User Guide" href="../user_guide/index.html" />
+    <link rel="next" title="structure_step package" href="structure_step.html" />
+    <link rel="prev" title="API Documentation" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -160,15 +160,15 @@
 </li>
 
 
-<li class="nav-item current active">
-  <a class="nav-link nav-internal" href="#">
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../developer_guide/index.html">
     Developer Documentation
   </a>
 </li>
 
 
-<li class="nav-item ">
-  <a class="nav-link nav-internal" href="../api/index.html">
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
     API Documentation
   </a>
 </li>
@@ -342,15 +342,15 @@ document.write(`
 </li>
 
 
-<li class="nav-item current active">
-  <a class="nav-link nav-internal" href="#">
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../developer_guide/index.html">
     Developer Documentation
   </a>
 </li>
 
 
-<li class="nav-item ">
-  <a class="nav-link nav-internal" href="../api/index.html">
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
     API Documentation
   </a>
 </li>
@@ -449,10 +449,11 @@ document.write(`
 <nav class="bd-docs-nav bd-links"
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
-  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
-<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">structure_step</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="structure_step.html">structure_step package</a></li>
+</ul>
+</details></li>
 </ul>
 </div>
 </nav></div>
@@ -490,7 +491,10 @@ document.write(`
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page">Developer...</li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">API Documentation</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">structure_step</li>
   </ul>
 </nav>
 </div>
@@ -507,34 +511,75 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="developer-documentation">
-<h1>Developer Documentation<a class="headerlink" href="#developer-documentation" title="Link to this heading">#</a></h1>
-<p>Contents:</p>
+  <section id="structure-step">
+<h1>structure_step<a class="headerlink" href="#structure-step" title="Link to this heading">#</a></h1>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#stable-release">Stable release</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#from-sources">From sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structure_step.html">structure_step package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="structure_step.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="structure_step.html#module-structure_step.metadata">structure_step.metadata module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="structure_step.html#module-structure_step.structure">structure_step.structure module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure"><code class="docutils literal notranslate"><span class="pre">Structure</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.parser"><code class="docutils literal notranslate"><span class="pre">Structure.parser</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.options"><code class="docutils literal notranslate"><span class="pre">Structure.options</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.subflowchart"><code class="docutils literal notranslate"><span class="pre">Structure.subflowchart</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.parameters"><code class="docutils literal notranslate"><span class="pre">Structure.parameters</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.analyze"><code class="docutils literal notranslate"><span class="pre">Structure.analyze()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.calculator"><code class="docutils literal notranslate"><span class="pre">Structure.calculator()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.create_parser"><code class="docutils literal notranslate"><span class="pre">Structure.create_parser()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.description_text"><code class="docutils literal notranslate"><span class="pre">Structure.description_text()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.git_revision"><code class="docutils literal notranslate"><span class="pre">Structure.git_revision</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.plot"><code class="docutils literal notranslate"><span class="pre">Structure.plot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.run"><code class="docutils literal notranslate"><span class="pre">Structure.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.run_ase_optimizer"><code class="docutils literal notranslate"><span class="pre">Structure.run_ase_optimizer()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.set_id"><code class="docutils literal notranslate"><span class="pre">Structure.set_id()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.set_subids"><code class="docutils literal notranslate"><span class="pre">Structure.set_subids()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure.Structure.version"><code class="docutils literal notranslate"><span class="pre">Structure.version</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
-<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="contributing.html#types-of-contributions">Types of Contributions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="contributing.html#get-started">Get Started!</a></li>
-<li class="toctree-l2"><a class="reference internal" href="contributing.html#pull-request-guidelines">Pull Request Guidelines</a></li>
-<li class="toctree-l2"><a class="reference internal" href="contributing.html#tips">Tips</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="structure_step.html#module-structure_step.structure_parameters">structure_step.structure_parameters module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="structure_step.html#structure_step.structure_parameters.StructureParameters"><code class="docutils literal notranslate"><span class="pre">StructureParameters</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure_parameters.StructureParameters.parameters"><code class="docutils literal notranslate"><span class="pre">StructureParameters.parameters</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="structure_step.html#module-structure_step.structure_step">structure_step.structure_step module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="structure_step.html#structure_step.structure_step.StructureStep"><code class="docutils literal notranslate"><span class="pre">StructureStep</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure_step.StructureStep.create_node"><code class="docutils literal notranslate"><span class="pre">StructureStep.create_node()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure_step.StructureStep.create_tk_node"><code class="docutils literal notranslate"><span class="pre">StructureStep.create_tk_node()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure_step.StructureStep.description"><code class="docutils literal notranslate"><span class="pre">StructureStep.description()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.structure_step.StructureStep.my_description"><code class="docutils literal notranslate"><span class="pre">StructureStep.my_description</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="structure_step.html#module-structure_step.tk_structure">structure_step.tk_structure module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure"><code class="docutils literal notranslate"><span class="pre">TkStructure</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.tk_flowchart"><code class="docutils literal notranslate"><span class="pre">TkStructure.tk_flowchart</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.node"><code class="docutils literal notranslate"><span class="pre">TkStructure.node</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.canvas"><code class="docutils literal notranslate"><span class="pre">TkStructure.canvas</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.dialog"><code class="docutils literal notranslate"><span class="pre">TkStructure.dialog</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.x"><code class="docutils literal notranslate"><span class="pre">TkStructure.x</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.y"><code class="docutils literal notranslate"><span class="pre">TkStructure.y</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.w"><code class="docutils literal notranslate"><span class="pre">TkStructure.w</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.h"><code class="docutils literal notranslate"><span class="pre">TkStructure.h</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.self"><code class="docutils literal notranslate"><span class="pre">TkStructure.self</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.create_dialog"><code class="docutils literal notranslate"><span class="pre">TkStructure.create_dialog()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.reset_dialog"><code class="docutils literal notranslate"><span class="pre">TkStructure.reset_dialog()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.reset_structure_frame"><code class="docutils literal notranslate"><span class="pre">TkStructure.reset_structure_frame()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="structure_step.html#structure_step.tk_structure.TkStructure.right_click"><code class="docutils literal notranslate"><span class="pre">TkStructure.right_click()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="structure_step.html#module-structure_step">Module contents</a></li>
 </ul>
 </li>
 </ul>
 </div>
-<section id="indices-and-tables">
-<h2>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p><a class="reference internal" href="../genindex.html"><span class="std std-ref">Index</span></a></p></li>
-<li><p><a class="reference internal" href="../py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
-<li><p><a class="reference internal" href="../search.html"><span class="std std-ref">Search Page</span></a></p></li>
-</ul>
-</section>
 </section>
 
 
@@ -548,20 +593,20 @@ document.write(`
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../user_guide/index.html"
+       href="index.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">User Guide</p>
+        <p class="prev-next-title">API Documentation</p>
       </div>
     </a>
     <a class="right-next"
-       href="installation.html"
+       href="structure_step.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Installation</p>
+        <p class="prev-next-title">structure_step package</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -576,21 +621,9 @@ document.write(`
 
 
   <div class="sidebar-secondary-item">
-<div
-    id="pst-page-navigation-heading-2"
-    class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> On this page
-  </div>
-  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#indices-and-tables">Indices and tables</a></li>
-</ul>
-  </nav></div>
-
-  <div class="sidebar-secondary-item">
 
   <div class="tocsection sourcelink">
-    <a href="../_sources/developer_guide/index.rst.txt">
+    <a href="../_sources/api/modules.rst.txt">
       <i class="fa-solid fa-file-lines"></i> Show Source
     </a>
   </div>
