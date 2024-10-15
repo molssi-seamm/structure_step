@@ -451,11 +451,13 @@ class Structure(seamm.Node, geomeTRIC_mixin):
         if P is None:
             P = self.parameters.values_to_dict()
 
+        result = self.header + "\n"
         if P["approach"] == "Optimization":
+            text = ""
             if P["optimizer"].lower().endswith("/geometric"):
-                text = self.describe_geomeTRIC_optimizer(P=P)
+                result += self.describe_geomeTRIC_optimizer(P=P)
             else:
-                text = "The structure will be optimized using the "
+                text += "The structure will be optimized using the "
                 text += "{optimizer} optimizer, converging to {convergence} "
 
             max_steps = P["max steps"]
@@ -472,6 +474,8 @@ class Structure(seamm.Node, geomeTRIC_mixin):
                 text += " The workflow will continue if the structure "
                 text += "does not converge."
 
+        result += "\n" + str(__(text, **P, indent=7 * " "))
+
         # Make sure the subflowchart has the data from the parent flowchart
         self.subflowchart.root_directory = self.flowchart.root_directory
         self.subflowchart.executor = self.flowchart.executor
@@ -480,12 +484,14 @@ class Structure(seamm.Node, geomeTRIC_mixin):
         if not short:
             # Get the first real node
             node = self.subflowchart.get_node("1").next()
-            text += "\n\nThe energy and forces will be calculated as follows:\n"
+            result += "\n\n    The energy and forces will be calculated as follows:\n"
 
             # Now walk through the steps in the subflowchart...
             while node is not None:
                 try:
-                    text += __(node.description_text(), indent=3 * " ").__str__()
+                    result += str(
+                        __(node.description_text(), indent=7 * " ", wrap=False)
+                    )
                 except Exception as e:
                     print(f"Error describing structure flowchart: {e} in {node}")
                     self.logger.critical(
@@ -502,10 +508,10 @@ class Structure(seamm.Node, geomeTRIC_mixin):
                         f"{sys.exc_info()[0]} in {str(node)}"
                     )
                     raise
-                text += "\n"
+                result += "\n"
                 node = node.next()
 
-        return self.header + "\n" + __(text, **P, indent=4 * " ").__str__()
+        return result
 
     def plot(self, E_units="", F_units=""):
         """Generate a plot of the convergence of the geometry optimization."""
@@ -655,6 +661,15 @@ class Structure(seamm.Node, geomeTRIC_mixin):
                 raise ValueError(f"Unknown optimizer '{P['optimizer']}' in Structure")
         else:
             raise ValueError(f"Unknown approach '{P['approach']}' in Structure")
+
+        # Print the results
+        self.analyze()
+
+        # Store results to db, variables, tables, and json as requested
+        self.store_results(
+            configuration=self._working_configuration,
+            data=self._results,
+        )
 
         return next_node
 
@@ -806,6 +821,7 @@ class Structure(seamm.Node, geomeTRIC_mixin):
 
     def set_subids(self, node_id=()):
         """Set the ids of the nodes in the subflowchart"""
+        self.subflowchart.reset_visited()
         node = self.subflowchart.get_node("1").next()
         n = 1
         while node is not None:
