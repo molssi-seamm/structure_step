@@ -163,8 +163,8 @@ class TkStructure(seamm.TkNode):
 
         # and binding to change as needed
         for key in (
-            "approach",
             "target",
+            "approach",
             "optimizer",
             "convergence formula",
             "convergence",
@@ -259,11 +259,14 @@ class TkStructure(seamm.TkNode):
             optimizer = self["optimizer"].get()
             convergence = self["convergence"].get()
 
-            optimizers = [
-                k
-                for k, v in self.metadata["optimizers"].items()
-                if target in v["targets"]
-            ]
+            if self.is_expr(target):
+                optimizers = [k for k, v in self.metadata["optimizers"].items()]
+            else:
+                optimizers = [
+                    k
+                    for k, v in self.metadata["optimizers"].items()
+                    if target in v["targets"]
+                ]
             self["optimizer"].config(values=optimizers)
             if optimizer not in optimizers:
                 optimizer = optimizers[0]

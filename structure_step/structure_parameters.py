@@ -91,8 +91,8 @@ class StructureParameters(seamm.Parameters):
                 "transition state",
             ),
             "format_string": "",
-            "description": "Approach:",
-            "help_text": "The approach or method for determining the structure.",
+            "description": "Target:",
+            "help_text": "The type of structure that is the target.",
         },
         "optimizer": {
             "default": "geomeTRIC/geomeTRIC",
