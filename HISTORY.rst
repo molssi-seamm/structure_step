@@ -1,6 +1,11 @@
 =======
 History
 =======
+2024.10.20 -- Bugfixes & internal changes
+    * Reorganized the code, moving the ASE specific parts to seamm-ase.
+    * Fixed formatting of output
+    * Fixed typos in the references
+
 2024.10.15 -- Enhancement: improved output and aded to results
     * Added energy, etc. to results
     * Added more detail to printed output
