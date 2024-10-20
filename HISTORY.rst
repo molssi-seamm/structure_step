@@ -1,7 +1,8 @@
 =======
 History
 =======
-2024.10.20 -- Bugfixes: Formatting of output and typos
+2024.10.20 -- Bugfixes & internal changes
+    * Reorganized the code, moving the ASE specific parts to seamm-ase.
     * Fixed formatting of output
     * Fixed typos in the references
 
