@@ -254,7 +254,7 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
                 text += " The workflow will continue if the structure "
                 text += "does not converge."
 
-        result += "\n" + str(__(text, **P, indent=7 * " "))
+        result += "\n" + str(__(text, **P, indent=4 * " "))
 
         # Make sure the subflowchart has the data from the parent flowchart
         self.subflowchart.root_directory = self.flowchart.root_directory
