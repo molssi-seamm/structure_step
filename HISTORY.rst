@@ -1,6 +1,11 @@
 =======
 History
 =======
+2025.5.8 -- Bugfixes: using 'natoms' in steps, and continuing when not converged.
+    * Corrected errors handling the use of 'natoms' in the maximum number of steps
+      allowed, e.g. '6 * natoms'.
+    * Correctly handle convergence failure in  geomeTRIC
+      
 2024.10.20 -- Bugfixes & internal changes
     * Reorganized the code, moving the ASE specific parts to seamm-ase.
     * Fixed formatting of output

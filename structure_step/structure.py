@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Non-graphical part of the Structure step in a SEAMM flowchart
-"""
+"""Non-graphical part of the Structure step in a SEAMM flowchart"""
 
 import logging
 from pathlib import Path
@@ -241,7 +240,11 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
                 text += "{optimizer} optimizer, converging to {convergence} "
 
             max_steps = P["max steps"]
-            if natoms is not None and "natoms" in max_steps:
+            if (
+                natoms is not None
+                and isinstance(max_steps, str)
+                and "natoms" in max_steps
+            ):
                 tmp = max_steps.split()
                 if "natoms" in tmp[0]:
                     max_steps = int(tmp[1]) * natoms
@@ -437,7 +440,14 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             if P["optimizer"].lower().endswith("/ase"):
                 self.run_ase_optimizer(P, PP)
             elif P["optimizer"].lower().endswith("/geometric"):
-                self.run_geomeTRIC_optimizer(P, PP)
+                try:
+                    self.run_geomeTRIC_optimizer(P, PP)
+                except Exception as e:
+                    if "did not converge" in str(e):
+                        if not P["continue if not converged"]:
+                            raise
+                    else:
+                        raise
             else:
                 raise ValueError(f"Unknown optimizer '{P['optimizer']}' in Structure")
         else:
