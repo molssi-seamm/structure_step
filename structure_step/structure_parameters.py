@@ -89,6 +89,7 @@ class StructureParameters(seamm.Parameters):
             "enumeration": (
                 "minimum",
                 "transition state",
+                "stereoisomers",
             ),
             "format_string": "",
             "description": "Target:",
@@ -249,6 +250,15 @@ class StructureParameters(seamm.Parameters):
             "format_string": "",
             "description": "On error:",
             "help_text": "Which subdirectories to keep if there is an error.",
+        },
+        "max stereoisomers": {
+            "default": 1024,
+            "kind": "integer",
+            "default_units": "",
+            "enumeration": tuple(),
+            "format_string": "",
+            "description": "Maximum # of stereoisomers:",
+            "help_text": "The maximum number of stereoisomers to keep.",
         },
         "results": {
             "default": {},

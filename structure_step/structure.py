@@ -10,10 +10,12 @@ import sys
 import time
 
 from tabulate import tabulate
+from rdkit.Chem import rdmolops, EnumerateStereoisomers, rdDistGeom, rdMolTransforms
 
 import structure_step
 import molsystem
 import seamm
+from seamm import standard_parameters
 from seamm_ase import ASE_mixin
 from seamm_geometric import geomeTRIC_mixin
 from seamm_util import units_class, getParser
@@ -231,40 +233,52 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             P = self.parameters.values_to_dict()
 
         result = self.header + "\n"
-        if P["approach"] == "Optimization":
-            text = ""
-            if P["optimizer"].lower().endswith("/geometric"):
-                result += self.describe_geomeTRIC_optimizer(P=P)
-            else:
-                text += "The structure will be optimized using the "
-                text += "{optimizer} optimizer, converging to {convergence} "
-
-            max_steps = P["max steps"]
-            if (
-                natoms is not None
-                and isinstance(max_steps, str)
-                and "natoms" in max_steps
-            ):
-                tmp = max_steps.split()
-                if "natoms" in tmp[0]:
-                    max_steps = int(tmp[1]) * natoms
+        text = ""
+        target = P["target"]
+        if target == "stereoisomers":
+            text += "Will generate up to {max stereoisomers} stereoisomers of the "
+            text += "structure."
+        elif target in ("minimum", "transition state"):
+            approach = P["approach"]
+            if approach == "Optimization":
+                if P["optimizer"].lower().endswith("/geometric"):
+                    result += self.describe_geomeTRIC_optimizer(P=P)
                 else:
-                    max_steps = int(tmp[0]) * natoms
-            text += f"with a maximum of {max_steps} steps."
+                    text += "The structure will be optimized using the "
+                    text += "{optimizer} optimizer, converging to {convergence} "
 
-            stop = P["continue if not converged"]
-            if isinstance(stop, bool) and not stop or stop == "no":
-                text += " The workflow will continue if the structure "
-                text += "does not converge."
+                max_steps = P["max steps"]
+                if (
+                    natoms is not None
+                    and isinstance(max_steps, str)
+                    and "natoms" in max_steps
+                ):
+                    tmp = max_steps.split()
+                    if "natoms" in tmp[0]:
+                        max_steps = int(tmp[1]) * natoms
+                    else:
+                        max_steps = int(tmp[0]) * natoms
+                text += f"with a maximum of {max_steps} steps."
 
-        result += "\n" + str(__(text, **P, indent=4 * " "))
+                stop = P["continue if not converged"]
+                if isinstance(stop, bool) and not stop or stop == "no":
+                    text += " The workflow will continue if the structure "
+                    text += "does not converge."
+            else:
+                raise RuntimeError(
+                    f"Do not recognize approach '{approach}' for target '{target}'"
+                )
+        else:
+            raise RuntimeError(f"Do not recognize target '{target}'")
+
+        result += str(__(text, **P, indent=4 * " "))
 
         # Make sure the subflowchart has the data from the parent flowchart
         self.subflowchart.root_directory = self.flowchart.root_directory
         self.subflowchart.executor = self.flowchart.executor
         self.subflowchart.in_jobserver = self.subflowchart.in_jobserver
 
-        if not short:
+        if not short and target in ("minimum", "transition state"):
             # Get the first real node
             node = self.subflowchart.get_node("1").next()
             result += "\n\n    The energy and forces will be calculated as follows:\n"
@@ -295,6 +309,134 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
                 node = node.next()
 
         return result
+
+    def generate_stereoisomers(self, P):
+        """Generate the stereoisomers.
+
+        Parameters
+        ----------
+        P : dict(str, value)
+            The control parameters
+        """
+        _, starting_configuration = self.get_system_configuration()
+        molecule = starting_configuration.to_RDKMol()
+
+        options = EnumerateStereoisomers.StereoEnumerationOptions(
+            unique=True, tryEmbedding=True, maxIsomers=P["max stereoisomers"]
+        )
+
+        n_max = EnumerateStereoisomers.GetStereoisomerCount(molecule, options=options)
+        printer.important(
+            __(
+                f"The upper bound on the number of stereoisomers is {n_max}.",
+                indent=4 * " ",
+            )
+        )
+
+        isomers = tuple(
+            EnumerateStereoisomers.EnumerateStereoisomers(molecule, options=options)
+        )
+
+        # If only one isomer, may need to embed it
+        if len(isomers) == 1 and isomers[0].GetNumConformers() == 0:
+            for ring in rdmolops.GetSSSR(molecule):
+                if len(ring) <= 4:
+                    ps = rdDistGeom.srETKDGv3()
+                    break
+            else:
+                ps = rdDistGeom.ETKDGv3()
+
+            ps.trackFailures = True
+            conformer = rdDistGeom.EmbedMolecule(molecule, ps)
+            if conformer == -1:
+                raise RuntimeError("Could not embed {SMILES}")
+
+            isomers = (molecule,)
+
+        first = True
+        for isomer in isomers:
+            rdMolTransforms.CanonicalizeMol(isomer)
+            conformer = [x for x in isomer.GetConformers()][-1]
+
+            system, configuration = self.get_system_configuration(
+                P, first=first, same_as="current"
+            )
+
+            configuration.coordinates_from_RDKMol(conformer)
+            standard_parameters.set_names(system, configuration, P, _first=first)
+            first = False
+
+        printer.important(
+            __(
+                f"Generated {len(isomers)} stereoisomers.",
+                indent=4 * " ",
+            )
+        )
+        printer.important("")
+
+        # Reference
+        citations = molsystem.rdkit_citations()
+        for i, citation in enumerate(citations, start=1):
+            self.references.cite(
+                raw=citation,
+                alias=f"rdkit_{i}",
+                module="structure_step",
+                level=1,
+                note=f"The principle citation #{i} for RDKit.",
+            )
+
+    def optimize(self, P, PP):
+        """Optimize the structure to a minimum or transition state
+
+        Parameters
+        ----------
+        P : dict(str, value)
+            The control parameters
+
+        PP : dict(str, value)
+            The printable control parameters
+        """
+        self._data = {
+            "step": [],
+            "energy": [],
+            "max_force": [],
+            "rms_force": [],
+            "max_step": [],
+        }
+        self._last_coordinates = None
+        self._step = 0
+
+        # Get the final configuration
+        _, self._working_configuration = self.get_system_configuration(P)
+
+        tic = time.perf_counter_ns()
+        if P["approach"].lower() == "optimization":
+            if P["optimizer"].lower().endswith("/ase"):
+                self.run_ase_optimizer(P, PP)
+            elif P["optimizer"].lower().endswith("/geometric"):
+                try:
+                    self.run_geomeTRIC_optimizer(P, PP)
+                except Exception as e:
+                    if "did not converge" in str(e):
+                        if not P["continue if not converged"]:
+                            raise
+                    else:
+                        raise
+            else:
+                raise ValueError(f"Unknown optimizer '{P['optimizer']}' in Structure")
+        else:
+            raise ValueError(f"Unknown approach '{P['approach']}' in Structure")
+        toc = time.perf_counter_ns()
+        self._results["t_elapsed"] = round((toc - tic) * 1.0e-9, 3)
+
+        # Print the results
+        self.analyze()
+
+        # Store results to db, variables, tables, and json as requested
+        self.store_results(
+            configuration=self._working_configuration,
+            data=self._results,
+        )
 
     def plot(self, E_units="", F_units=""):
         """Generate a plot of the convergence of the geometry optimization."""
@@ -401,15 +543,6 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         seamm.Node
             The next node object in the flowchart.
         """
-        self._data = {
-            "step": [],
-            "energy": [],
-            "max_force": [],
-            "rms_force": [],
-            "max_step": [],
-        }
-        self._last_coordinates = None
-        self._step = 0
         next_node = super().run(printer)
 
         # Get the values of the parameters, dereferencing any variables
@@ -423,9 +556,8 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             if isinstance(PP[key], units_class):
                 PP[key] = "{:~P}".format(PP[key])
 
-        # Get the final configuration
-        _, self._working_configuration = self.get_system_configuration(P)
-        n_atoms = self._working_configuration.n_atoms
+        _, configuration = self.get_system_configuration()
+        n_atoms = configuration.n_atoms
 
         # Print what we are doing
         printer.important(
@@ -435,34 +567,20 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             )
         )
 
-        tic = time.perf_counter_ns()
-        if P["approach"].lower() == "optimization":
-            if P["optimizer"].lower().endswith("/ase"):
-                self.run_ase_optimizer(P, PP)
-            elif P["optimizer"].lower().endswith("/geometric"):
-                try:
-                    self.run_geomeTRIC_optimizer(P, PP)
-                except Exception as e:
-                    if "did not converge" in str(e):
-                        if not P["continue if not converged"]:
-                            raise
-                    else:
-                        raise
+        # Just do it!
+        target = P["target"]
+        if target == "stereoisomers":
+            self.generate_stereoisomers(P)
+        elif target in ("minimum", "transition state"):
+            approach = P["approach"]
+            if approach == "Optimization":
+                self.optimize(P, PP)
             else:
-                raise ValueError(f"Unknown optimizer '{P['optimizer']}' in Structure")
+                raise RuntimeError(
+                    f"Do not recognize approach '{approach}' for target '{target}'"
+                )
         else:
-            raise ValueError(f"Unknown approach '{P['approach']}' in Structure")
-        toc = time.perf_counter_ns()
-        self._results["t_elapsed"] = round((toc - tic) * 1.0e-9, 3)
-
-        # Print the results
-        self.analyze()
-
-        # Store results to db, variables, tables, and json as requested
-        self.store_results(
-            configuration=self._working_configuration,
-            data=self._results,
-        )
+            raise RuntimeError(f"Do not recognize target '{target}'")
 
         return next_node
 

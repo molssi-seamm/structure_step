@@ -169,7 +169,7 @@ class TkStructure(seamm.TkNode):
             "convergence formula",
             "convergence",
         ):
-            self[key].combobox.bind("<<ComboboxSelected>>", self.reset_structure_frame)
+            self[key].combobox.bind("<<ComboboxSelected>>", self.reset_dialog)
 
         # structure handling frame to isolate widgets
         frame = self["handling frame"] = ttk.LabelFrame(
@@ -183,7 +183,12 @@ class TkStructure(seamm.TkNode):
 
         widgets = []
         row = 0
-        for key in ("structure handling", "system name", "configuration name"):
+        for key in (
+            "structure handling",
+            "subsequent structure handling",
+            "system name",
+            "configuration name",
+        ):
             self[key] = P[key].widget(frame)
             self[key].grid(row=row, column=0, sticky=tk.EW)
             widgets.append(self[key])
@@ -232,6 +237,7 @@ class TkStructure(seamm.TkNode):
 
         self["handling frame"].grid(row=row, column=0, sticky=tk.EW, pady=10)
         row += 1
+        self.reset_structure_handling_frame()
 
         return row
 
@@ -246,110 +252,153 @@ class TkStructure(seamm.TkNode):
         for slave in frame.grid_slaves():
             slave.grid_forget()
 
-        # Main controls
         row = 0
         widgets = []
         widgets2 = []
-        for key in ("target", "approach"):
-            self[key].grid(row=row, column=0, columnspan=2, sticky=tk.W)
-            widgets.append(self[key])
-            row += 1
 
-        if approach == "Optimization":
-            optimizer = self["optimizer"].get()
-            convergence = self["convergence"].get()
-
-            if self.is_expr(target):
-                optimizers = [k for k, v in self.metadata["optimizers"].items()]
-            else:
-                optimizers = [
-                    k
-                    for k, v in self.metadata["optimizers"].items()
-                    if target in v["targets"]
-                ]
-            self["optimizer"].config(values=optimizers)
-            if optimizer not in optimizers:
-                optimizer = optimizers[0]
-                self["optimizer"].set(optimizer)
-
-            if convergence == "custom":
-                convergence_formula = self["convergence formula"].get()
-                self["convergence formula"].state(("!disabled",))
-            else:
-                convergence_formula = self.metadata["convergence parameters"][
-                    convergence
-                ]["convergence formula"]
-                self["convergence formula"].state(("disabled",))
-
-            convergence_formulas = [
-                *self.metadata["optimizers"][optimizer]["convergence formulas"]
-            ] + ["custom"]
-            self["convergence formula"].config(values=convergence_formulas)
-            if convergence_formula not in convergence_formulas:
-                convergence_formula = convergence_formulas[0]
-            self["convergence formula"].set(convergence_formula)
-
-            self["convergence text"].config(
-                text=self.metadata["convergence formulas"][convergence_formula]["text"]
-            )
-
-            # The possible convergence criteria
-            convergences = [
-                k
-                for k, v in self.metadata["convergence parameters"].items()
-                if v["convergence formula"] in convergence_formulas
-            ]
-            self["convergence"].config(values=convergences)
-            if convergence not in convergences:
-                convergence = convergences[0]
-
-            for key in (
-                "optimizer",
-                "convergence",
-                "convergence formula",
-            ):
-                self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
+        if target == "stereoisomers":
+            # Main controls
+            for key in ("target", "max stereoisomers"):
+                self[key].grid(row=row, column=0, columnspan=2, sticky=tk.W)
+                widgets.append(self[key])
+                row += 1
+        elif target in ("minimum", "transition state"):
+            # Main controls
+            for key in ("target", "approach"):
+                self[key].grid(row=row, column=0, columnspan=2, sticky=tk.W)
                 widgets.append(self[key])
                 row += 1
 
-            self["convergence text"].grid(row=row, column=1, sticky=tk.E)
-            row += 1
+            if approach == "Optimization":
+                optimizer = self["optimizer"].get()
+                convergence = self["convergence"].get()
 
-            # Grid in the convergence criteria and make them active, or not.
-            criteria = self.metadata["convergence formulas"][convergence_formula][
-                "criteria"
-            ]
-            for key in criteria:
-                self[key].grid(row=row, column=1, sticky=tk.EW)
-                widgets2.append(self[key])
-                row += 1
-                if convergence == "custom":
-                    self[key].state(("!disabled",))
+                if self.is_expr(target):
+                    optimizers = [k for k, v in self.metadata["optimizers"].items()]
                 else:
-                    self[key].state(("disabled",))
+                    optimizers = [
+                        k
+                        for k, v in self.metadata["optimizers"].items()
+                        if target in v["targets"]
+                    ]
+                self["optimizer"].config(values=optimizers)
+                if optimizer not in optimizers:
+                    optimizer = optimizers[0]
+                    self["optimizer"].set(optimizer)
 
-            # and if not custom, set the values and units
-            if convergence != "custom":
-                for key, tmp in self.metadata["convergence parameters"][
-                    convergence
-                ].items():
-                    if "criterion" in key:
-                        self[key].set(tmp[0], unit_string=tmp[1])
+                if convergence == "custom":
+                    convergence_formula = self["convergence formula"].get()
+                    self["convergence formula"].state(("!disabled",))
+                else:
+                    convergence_formula = self.metadata["convergence parameters"][
+                        convergence
+                    ]["convergence formula"]
+                    self["convergence formula"].state(("disabled",))
 
-            for key in (
-                "max steps",
-                "calculate hessian",
-                "continue if not converged",
-                "on success",
-                "on error",
-            ):
-                self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
-                widgets.append(self[key])
+                convergence_formulas = [
+                    *self.metadata["optimizers"][optimizer]["convergence formulas"]
+                ] + ["custom"]
+                self["convergence formula"].config(values=convergence_formulas)
+                if convergence_formula not in convergence_formulas:
+                    convergence_formula = convergence_formulas[0]
+                self["convergence formula"].set(convergence_formula)
+
+                self["convergence text"].config(
+                    text=self.metadata["convergence formulas"][convergence_formula][
+                        "text"
+                    ]
+                )
+
+                # The possible convergence criteria
+                convergences = [
+                    k
+                    for k, v in self.metadata["convergence parameters"].items()
+                    if v["convergence formula"] in convergence_formulas
+                ]
+                self["convergence"].config(values=convergences)
+                if convergence not in convergences:
+                    convergence = convergences[0]
+
+                for key in (
+                    "optimizer",
+                    "convergence",
+                    "convergence formula",
+                ):
+                    self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
+                    widgets.append(self[key])
+                    row += 1
+
+                self["convergence text"].grid(row=row, column=1, sticky=tk.E)
                 row += 1
+
+                # Grid in the convergence criteria and make them active, or not.
+                criteria = self.metadata["convergence formulas"][convergence_formula][
+                    "criteria"
+                ]
+                for key in criteria:
+                    self[key].grid(row=row, column=1, sticky=tk.EW)
+                    widgets2.append(self[key])
+                    row += 1
+                    if convergence == "custom":
+                        self[key].state(("!disabled",))
+                    else:
+                        self[key].state(("disabled",))
+
+                # and if not custom, set the values and units
+                if convergence != "custom":
+                    for key, tmp in self.metadata["convergence parameters"][
+                        convergence
+                    ].items():
+                        if "criterion" in key:
+                            self[key].set(tmp[0], unit_string=tmp[1])
+
+                for key in (
+                    "max steps",
+                    "calculate hessian",
+                    "continue if not converged",
+                    "on success",
+                    "on error",
+                ):
+                    self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
+                    widgets.append(self[key])
+                    row += 1
 
         w1 = sw.align_labels(widgets, sticky=tk.E)
-        w2 = sw.align_labels(widgets2, sticky=tk.E)
-        frame.columnconfigure(0, minsize=w1 - w2 + 50)
+        if len(widgets2) > 0:
+            w2 = sw.align_labels(widgets2, sticky=tk.E)
+            frame.columnconfigure(0, minsize=w1 - w2 + 50)
+
+    def reset_structure_handling_frame(self, widget=None):
+        """Layout the widgets in the structure hadnling frame
+        as needed for the current state"""
+
+        target = self["target"].get()
+
+        frame = self["handling frame"]
+        for slave in frame.grid_slaves():
+            slave.grid_forget()
+
+        row = 0
+        widgets = []
+
+        if target == "stereoisomers":
+            # Main controls
+            for key in (
+                "structure handling",
+                "subsequent structure handling",
+                "system name",
+                "configuration name",
+            ):
+                self[key].grid(row=row, column=0, sticky=tk.EW)
+                widgets.append(self[key])
+                row += 1
+        elif target in ("minimum", "transition state"):
+            # Main controls
+            for key in ("structure handling", "system name", "configuration name"):
+                self[key].grid(row=row, column=0, sticky=tk.EW)
+                widgets.append(self[key])
+                row += 1
+        sw.align_labels(widgets, sticky=tk.E)
 
     def right_click(self, event):
         """
