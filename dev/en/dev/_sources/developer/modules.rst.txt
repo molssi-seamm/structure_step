@@ -1,7 +1,0 @@
-structure_step
-==============
-
-.. toctree::
-   :maxdepth: 4
-
-   structure_step
