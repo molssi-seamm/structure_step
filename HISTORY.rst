@@ -1,6 +1,10 @@
 =======
 History
 =======
+2025.5.14 -- Added search for stereoisomers
+    * Added stereoisomers as a target, This will take a structure and generate
+      structures for stereoisomers, including that caused by double bonds.
+      
 2025.5.8 -- Bugfixes: using 'natoms' in steps, and continuing when not converged.
     * Corrected errors handling the use of 'natoms' in the maximum number of steps
       allowed, e.g. '6 * natoms'.
