@@ -1,6 +1,8 @@
 =======
 History
 =======
+2026.3.1 -- Internal: switching from deprecated library pkg_resources to importlib
+
 2025.5.14 -- Added search for stereoisomers
     * Added stereoisomers as a target, This will take a structure and generate
       structures for stereoisomers, including that caused by double bonds.
