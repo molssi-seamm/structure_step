@@ -1,6 +1,13 @@
 =======
 History
 =======
+2026.10.19 -- Bugfix: a convergence preset without the dialog
+    * The dialog sets the convergence formula and criteria when a preset, such as
+      'Gaussian (tight)', is chosen, but a flowchart made without it -- by
+      seamm-flowchart or the MCP server -- had only the preset's name: the
+      optimization stopped with KeyError '', or with the formula set, ran with the
+      default criteria. They now come from the preset when the step runs.
+
 2026.3.1 -- Internal: switching from deprecated library pkg_resources to importlib
 
 2025.5.14 -- Added search for stereoisomers
