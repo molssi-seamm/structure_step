@@ -18,7 +18,7 @@ import seamm
 from seamm import standard_parameters
 from seamm_ase import ASE_mixin
 from seamm_geometric import geomeTRIC_mixin
-from seamm_util import units_class, getParser
+from seamm_util import Q_, units_class, getParser
 import seamm_util.printing as printing
 from seamm_util.printing import FormattedText as __
 
@@ -207,6 +207,35 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
 
         return self.next()
 
+    def apply_convergence_preset(self, P):
+        """Set the convergence formula and criteria from the preset convergence.
+
+        The dialog does this when a preset (anything but "custom") is chosen, but a
+        flowchart made without it -- by seamm-flowchart or the MCP server -- has only
+        the preset's name: the formula was left empty, failing with KeyError '', and
+        the criteria were the defaults rather than the preset's.
+
+        Parameters
+        ----------
+        P : dict
+            The values of the parameters, changed in place.
+
+        Returns
+        -------
+        dict
+            P
+        """
+        convergence = P.get("convergence")
+        presets = self.metadata["convergence parameters"]
+        if not isinstance(convergence, str) or convergence not in presets:
+            return P
+        for key, value in presets[convergence].items():
+            if key == "convergence formula":
+                P[key] = value
+            elif "criterion" in key:
+                P[key] = Q_(float(value[0]), value[1])
+        return P
+
     def description_text(self, P=None, short=False, natoms=None):
         """Create the text description of what this step will do.
         The dictionary of control values is passed in as P so that
@@ -230,7 +259,7 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             A description of the current step.
         """
         if P is None:
-            P = self.parameters.values_to_dict()
+            P = self.apply_convergence_preset(self.parameters.values_to_dict())
 
         result = self.header + "\n"
         text = ""
@@ -549,6 +578,7 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         P = self.parameters.current_values_to_dict(
             context=seamm.flowchart_variables._data
         )
+        self.apply_convergence_preset(P)
 
         # Have to fix formatting for printing...
         PP = dict(P)
