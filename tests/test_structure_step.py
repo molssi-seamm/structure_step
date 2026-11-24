@@ -36,6 +36,24 @@ def test_convergence_preset_sets_formula_and_criteria():
     assert P["convergence formula"] == "E+grad"
 
 
+def test_preset_gradient_criteria_are_in_atomic_units():
+    """The programs' presets define the gradient criteria in E_h/bohr: Gaussian's
+    maximum force is 4.5e-4 E_h/bohr = 0.0231 eV/Å (it was labeled E_h/Å, so ASE
+    used 0.0123 eV/Å, and a custom criterion reached geomeTRIC 1.89x too loose)."""
+    import structure_step
+
+    node = structure_step.Structure()
+    P = node.parameters.current_values_to_dict()
+    P["convergence"] = "Gaussian"
+    node.apply_convergence_preset(P)
+    fmax = P["Maximum atomic gradient criterion"]
+    assert fmax.m_as("E_h/a_0") == pytest.approx(4.5e-4)
+    assert fmax.m_as("eV/Å") == pytest.approx(0.02314, rel=1e-3)
+    for name, preset in structure_step.metadata["convergence parameters"].items():
+        for key in ("RMS gradient criterion", "Maximum atomic gradient criterion"):
+            assert preset[key][1] in ("E_h/a_0", "eV/Å", "kcal/mol/Å"), (name, key)
+
+
 def test_description_with_an_empty_formula():
     """The description no longer fails with KeyError '' for a preset."""
     import structure_step

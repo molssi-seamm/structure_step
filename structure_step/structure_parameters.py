@@ -163,7 +163,7 @@ class StructureParameters(seamm.Parameters):
         "RMS gradient criterion": {
             "default": 3.0e-4,
             "kind": "float",
-            "default_units": "E_h/Å",
+            "default_units": "E_h/a_0",
             "enumeration": tuple(),
             "format_string": ".g",
             "description": "RMS gradient:",
@@ -172,7 +172,7 @@ class StructureParameters(seamm.Parameters):
         "Maximum atomic gradient criterion": {
             "default": 4.5e-4,
             "kind": "float",
-            "default_units": "E_h/Å",
+            "default_units": "E_h/a_0",
             "enumeration": tuple(),
             "format_string": ".g",
             "description": "Maximum atomic gradient:",
