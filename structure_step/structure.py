@@ -546,10 +546,12 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         self._results["nsteps"] = last.get("evaluations", 0)
         if "energy (eV)" in last:
             self._results["energy"] = Q_(last["energy (eV)"], "eV").m_as("kJ/mol")
-        if "max force (eV/Å)" in last:
-            self._results["maximum_gradient"] = Q_(
-                last["max force (eV/Å)"], "eV/Å"
-            ).m_as("kJ/mol/Å")
+        for key, name in (
+            ("max force (eV/Å)", "maximum_gradient"),
+            ("rms force (eV/Å)", "rms_gradient"),
+        ):
+            self._results[name] = Q_(last.get(key, 0.0), "eV/Å").m_as("kJ/mol/Å")
+        self._results["maximum_step"] = float(last.get("max step (Å)", 0.0))
         if not converged and P["continue if not converged"] not in (True, "yes"):
             raise RuntimeError(f"Optimization did not converge in {max_steps} steps")
 
