@@ -1,7 +1,8 @@
 seamm
 seamm-ase
+seamm-exec>=2026.11.24
 seamm-geometric
+seamm-optimizer>=2026.11.24
 seamm-util
 seamm-widgets
 tabulate
-
