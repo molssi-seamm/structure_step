@@ -216,6 +216,45 @@ class StructureParameters(seamm.Parameters):
             "description": "Maximum # of steps:",
             "help_text": "The maximum number of steps to take.",
         },
+        "cheap level": {
+            "default": "none",
+            "kind": "string",
+            "default_units": "",
+            "enumeration": ("none", "xTB:SQM@GFN2-xTB", "MOPAC:SQM@PM7"),
+            "format_string": "",
+            "description": "Cheap level for Hessians:",
+            "help_text": (
+                "The SEAMM optimizer: a cheap model chemistry whose Hessian starts the "
+                "optimization, is recomputed when the model keeps failing, and "
+                "checks that the end point is a minimum. 'none' uses a model "
+                "Hessian instead."
+            ),
+        },
+        "model hessian": {
+            "default": "Lindh",
+            "kind": "enumeration",
+            "default_units": "",
+            "enumeration": ("Lindh", "geomeTRIC guess"),
+            "format_string": "",
+            "description": "Model Hessian:",
+            "help_text": (
+                "The SEAMM optimizer's starting Hessian when there is no cheap level: "
+                "Lindh's model (1995) or geomeTRIC's guess."
+            ),
+        },
+        "check minimum": {
+            "default": "yes",
+            "kind": "boolean",
+            "default_units": "",
+            "enumeration": ("yes", "no"),
+            "format_string": "",
+            "description": "Check the minimum:",
+            "help_text": (
+                "The SEAMM optimizer: with a cheap level, check the end point's "
+                "Hessian and, at a saddle point, displace along the imaginary mode "
+                "both ways and optimize again."
+            ),
+        },
         "continue if not converged": {
             "default": "no",
             "kind": "boolean",

@@ -27,6 +27,20 @@ metadata["optimizers"] = {
         ),
         "default": True,
     },
+    "SEAMM/SEAMM": {
+        # seamm_optimizer over the flowchart's Model Chemistry (a warm MDI engine):
+        # internal coordinates, a model or cheap-level Hessian, a minimum check
+        "convergence formulas": ("ASE",),
+        "coordinate systems": (
+            "TRIC: translation-rotation internal coordinates",
+            "TRIC-p: primitive (redundant) TRIC",
+            "Cart: Cartesian coordinates",
+            "DLC: delocalized internal coordinates",
+            "HDLC: hybrid delocalized internal coordinates",
+        ),
+        "targets": ("minimum",),
+        "model chemistry": True,
+    },
     "BFGS/ASE": {
         "convergence formulas": ("ASE",),
         "targets": ("minimum",),
