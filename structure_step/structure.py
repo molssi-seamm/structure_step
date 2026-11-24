@@ -272,6 +272,8 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             if approach == "Optimization":
                 if P["optimizer"].lower().endswith("/geometric"):
                     result += self.describe_geomeTRIC_optimizer(P=P)
+                elif P["optimizer"].lower().endswith("/seamm"):
+                    text += self.describe_seamm_optimizer(P)
                 else:
                     text += "The structure will be optimized using the "
                     text += "{optimizer} optimizer, converging to {convergence} "
@@ -442,6 +444,8 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         if P["approach"].lower() == "optimization":
             if P["optimizer"].lower().endswith("/ase"):
                 self.run_ase_optimizer(P, PP)
+            elif P["optimizer"].lower().endswith("/seamm"):
+                self.run_seamm_optimizer(P, PP)
             elif P["optimizer"].lower().endswith("/geometric"):
                 try:
                     self.run_geomeTRIC_optimizer(P, PP)
@@ -466,6 +470,90 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             configuration=self._working_configuration,
             data=self._results,
         )
+
+    #: the SEAMM optimizer's names for the coordinate systems
+    SEAMM_COORDINATES = {
+        "TRIC": "TRIC",
+        "TRIC-p": "primitive",
+        "Cart": "cartesian",
+        "DLC": "DLC",
+        "HDLC": "HDLC",
+    }
+
+    def describe_seamm_optimizer(self, P):
+        """The description of the SEAMM optimizer (seamm_optimizer)."""
+        text = (
+            "The structure will be optimized with the SEAMM optimizer in "
+            "{coordinate system}, over the Model Chemistry's engine, until the "
+            "largest force on an atom is below {Maximum atomic gradient criterion} "
+        )
+        cheap = str(P.get("cheap level", "none")).strip()
+        if cheap.lower() in ("", "none"):
+            text += "(Hessian: the {model hessian} model) "
+        else:
+            text += f"(Hessian: {cheap}, recomputed when the model fails"
+            if P.get("check minimum") in (True, "yes"):
+                text += "; the end point is checked to be a minimum"
+            text += ") "
+        return text
+
+    def run_seamm_optimizer(self, P, PP):
+        """Optimize with seamm_optimizer over the flowchart's Model Chemistry (a
+        warm MDI engine), with a model or cheap-level Hessian."""
+        from seamm_exec.hessian import HessianDriver
+
+        configuration = self._working_configuration
+        n_atoms = configuration.n_atoms
+        fmax = P["Maximum atomic gradient criterion"]
+        fmax = fmax.m_as("eV/Å") if hasattr(fmax, "m_as") else float(fmax)
+        max_steps = P["max steps"]
+        if isinstance(max_steps, str) and "natoms" in max_steps:
+            tmp = max_steps.split()
+            max_steps = int(tmp[1] if "natoms" in tmp[0] else tmp[0]) * n_atoms
+        max_steps = int(max_steps)
+        coordinates = self.SEAMM_COORDINATES[
+            str(P["coordinate system"]).split(":")[0].strip()
+        ]
+        cheap = str(P.get("cheap level", "none")).strip()
+        cheap = None if cheap.lower() in ("", "none") else cheap
+        options = {
+            "coordinates": coordinates,
+            "check_minimum": P.get("check minimum") in (True, "yes")
+            and cheap is not None,
+        }
+        if cheap is None:
+            options["hessian"] = (
+                "geometric" if P.get("model hessian") == "geomeTRIC guess" else "lindh"
+            )
+
+        driver = HessianDriver(self, who="The Structure step", print_to=printer)
+        with driver.session(configuration) as session:
+            if session is None:
+                raise RuntimeError(
+                    "The SEAMM optimizer needs a Model Chemistry that runs as an MDI "
+                    "engine here (e.g. ORCA, MOPAC, xTB)."
+                )
+            converged = driver.optimize_in_blocks(
+                session,
+                fmax=fmax,
+                max_steps=max_steps,
+                optimizer="SEAMM",
+                optimizer_options=options,
+                cheap_level=cheap,
+            )
+        last = driver.last_optimization or {}
+        self._results["converged"] = bool(converged)
+        self._results["nsteps"] = last.get("evaluations", 0)
+        if "energy (eV)" in last:
+            self._results["energy"] = Q_(last["energy (eV)"], "eV").m_as("kJ/mol")
+        for key, name in (
+            ("max force (eV/Å)", "maximum_gradient"),
+            ("rms force (eV/Å)", "rms_gradient"),
+        ):
+            self._results[name] = Q_(last.get(key, 0.0), "eV/Å").m_as("kJ/mol/Å")
+        self._results["maximum_step"] = float(last.get("max step (Å)", 0.0))
+        if not converged and P["continue if not converged"] not in (True, "yes"):
+            raise RuntimeError(f"Optimization did not converge in {max_steps} steps")
 
     def plot(self, E_units="", F_units=""):
         """Generate a plot of the convergence of the geometry optimization."""

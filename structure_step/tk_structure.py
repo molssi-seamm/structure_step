@@ -168,8 +168,10 @@ class TkStructure(seamm.TkNode):
             "optimizer",
             "convergence formula",
             "convergence",
+            "cheap level",
         ):
             self[key].combobox.bind("<<ComboboxSelected>>", self.reset_dialog)
+        self["cheap level"].combobox.bind("<FocusOut>", self.reset_dialog)
 
         # structure handling frame to isolate widgets
         frame = self["handling frame"] = ttk.LabelFrame(
@@ -352,13 +354,39 @@ class TkStructure(seamm.TkNode):
                         if "criterion" in key:
                             self[key].set(tmp[0], unit_string=tmp[1])
 
-                for key in (
-                    "max steps",
-                    "calculate hessian",
-                    "continue if not converged",
-                    "on success",
-                    "on error",
-                ):
+                # The coordinate system, for the optimizers that have a choice
+                systems = self.metadata["optimizers"][optimizer].get(
+                    "coordinate systems"
+                )
+                if systems:
+                    self["coordinate system"].config(values=systems)
+                    if self["coordinate system"].get() not in systems:
+                        self["coordinate system"].set(systems[0])
+                    self["coordinate system"].grid(
+                        row=row, column=0, columnspan=2, sticky=tk.EW
+                    )
+                    widgets.append(self["coordinate system"])
+                    row += 1
+
+                if optimizer.lower().endswith("/seamm"):
+                    # The SEAMM optimizer: its Hessian options; it keeps no
+                    # step subdirectories and has no 'calculate hessian'
+                    keys = ["cheap level"]
+                    cheap = self["cheap level"].get().strip().lower()
+                    if cheap in ("", "none"):
+                        keys.append("model hessian")
+                    else:
+                        keys.append("check minimum")
+                    keys += ["max steps", "continue if not converged"]
+                else:
+                    keys = [
+                        "max steps",
+                        "calculate hessian",
+                        "continue if not converged",
+                        "on success",
+                        "on error",
+                    ]
+                for key in keys:
                     self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
                     widgets.append(self[key])
                     row += 1
