@@ -2,3 +2,5 @@ Pmw
 seamm
 seamm-util
 seamm-widgets
+seamm-exec>=2026.11.24
+seamm-optimizer>=2026.11.24

@@ -1,6 +1,11 @@
 =======
 History
 =======
+2026.11.24.1 -- Bugfix: install the SEAMM optimizer with the step
+    * structure-step now requires seamm-optimizer and seamm-exec 2026.11.24, so the
+      SEAMM optimizer works in any installation; before, an installation without
+      seamm-optimizer stopped with an error when it was chosen.
+
 2026.11.24 -- The SEAMM optimizer
     * A new optimizer, SEAMM, run over the flowchart's Model Chemistry (a warm MDI
       engine): internal coordinates (TRIC by default), Lindh's or geomeTRIC's model
