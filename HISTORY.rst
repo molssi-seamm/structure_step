@@ -1,6 +1,14 @@
 =======
 History
 =======
+2026.11.24 -- The SEAMM optimizer
+    * A new optimizer, SEAMM, run over the flowchart's Model Chemistry (a warm MDI
+      engine): internal coordinates (TRIC by default), Lindh's or geomeTRIC's model
+      Hessian or the Hessian of a cheap level such as GFN2-xTB, and a check that the
+      end point is a minimum. Needs seamm-exec 2026.11.24 and seamm-optimizer.
+    * The dialog shows the coordinate system for the optimizers that have one (also
+      geomeTRIC, where it was not shown) and only the options that apply.
+
 2026.10.19 -- Bugfix: a convergence preset without the dialog
     * The dialog sets the convergence formula and criteria when a preset, such as
       'Gaussian (tight)', is chosen, but a flowchart made without it -- by
