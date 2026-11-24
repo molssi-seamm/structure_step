@@ -1,15 +1,13 @@
 =======
 History
 =======
-2026.11.24.2 -- Bugfix: the presets' gradient criteria are in E_h/bohr
+2026.11.24.1 -- Bugfix: the presets' gradient criteria are in E_h/bohr
     * The convergence presets (Gaussian, NWChem, QChem, Turbomole, Inter-fragment) gave
       the programs' gradient criteria, which are in E_h/bohr, labeled E_h/Å. With
       geomeTRIC the two errors cancelled, so its presets are unchanged; ASE used them
       1.89 times too tight (Gaussian's maximum force 0.0123 eV/Å instead of 0.0231).
       The default custom gradient criteria are also in E_h/bohr now. Needs
       seamm-geometric 2026.11.24.1 or later.
-
-2026.11.24.1 -- Bugfix: install the SEAMM optimizer with the step
     * structure-step now requires seamm-optimizer and seamm-exec 2026.11.24, so the
       SEAMM optimizer works in any installation; before, an installation without
       seamm-optimizer stopped with an error when it was chosen.
