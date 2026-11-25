@@ -64,7 +64,7 @@ class FakeEngine:
         return -Q_(harmonic(self.xyz)[1], "eV/Å").m_as(units)
 
 
-MC = {"level": "Fake:SQM@harmonic", "step": "Fake", "method": "x", "options": {}}
+FAKE_MC = {"level": "Fake:SQM@harmonic", "step": "Fake", "method": "x", "options": {}}
 
 
 @pytest.fixture()
@@ -106,7 +106,7 @@ class _Structure(structure_step.Structure):
 
     def get_variable(self, name):
         assert name == "_model_chemistry"
-        return MC
+        return FAKE_MC
 
     def plot(self, E_units="", F_units=""):
         self.plotted = True
@@ -147,31 +147,85 @@ def _bond_lengths(configuration):
 
 
 # ----------------------------------------------------------------------
-# Choosing the source
+# Choosing the source: 'Energies and gradients from:' (engine)
 # ----------------------------------------------------------------------
-@pytest.mark.parametrize("optimizer", ["geomeTRIC/geomeTRIC", "BFGS/ASE"])
-def test_source_model_chemistry_without_substeps(tmp_path, configuration, optimizer):
+MC, SUB = "Model Chemistry", "subflowchart"
+GEO, SEAMM = "geomeTRIC/geomeTRIC", "SEAMM/SEAMM"
+
+
+@pytest.mark.parametrize(
+    "engine, optimizer, have_mc, have_sub, expected, note",
+    [
+        (MC, GEO, True, False, MC, None),
+        (MC, GEO, True, True, MC, None),  # as chosen, though there are sub-steps
+        (MC, GEO, False, True, SUB, energy_source.USING_SUBFLOWCHART),
+        (SUB, GEO, True, True, SUB, None),  # as chosen, though there is an MC
+        (SUB, GEO, False, True, SUB, None),
+        (SUB, GEO, True, False, MC, energy_source.USING_MODEL_CHEMISTRY),
+        (SUB, SEAMM, True, True, MC, None),  # SEAMM: only the Model Chemistry
+        (MC, "BFGS/ASE", True, False, MC, None),
+    ],
+)
+def test_choose_engine(engine, optimizer, have_mc, have_sub, expected, note):
+    assert energy_source.choose_engine(engine, optimizer, have_mc, have_sub) == (
+        expected,
+        note,
+    )
+
+
+@pytest.mark.parametrize(
+    "engine, optimizer, message",
+    [
+        (MC, GEO, NO_SOURCE),
+        (SUB, GEO, NO_SOURCE),
+        (SUB, SEAMM, SEAMM_NEEDS_MODEL_CHEMISTRY),
+        (MC, SEAMM, SEAMM_NEEDS_MODEL_CHEMISTRY),
+    ],
+)
+def test_choose_engine_neither_names_what_is_missing(engine, optimizer, message):
+    with pytest.raises(RuntimeError) as e:
+        energy_source.choose_engine(engine, optimizer, False, False)
+    assert str(e.value) == message
+    assert "properties.json" not in str(e.value)
+
+
+def test_engine_parameter_mirrors_thermochemistry():
+    """The same name, choices and default as the Thermochemistry step's."""
+    parameter = structure_step.StructureParameters.parameters["engine"]
+    assert parameter["default"] == "Model Chemistry"
+    assert parameter["enumeration"] == ("Model Chemistry", "subflowchart")
+    assert parameter["description"] == "Energies and gradients from:"
+
+
+@pytest.mark.parametrize(
+    "optimizer, expected", [(GEO, SUB), ("BFGS/ASE", SUB), (SEAMM, MC)]
+)
+def test_an_older_flowchart_keeps_its_source(optimizer, expected):
+    """Saved before 'engine' existed: geomeTRIC and ASE ran the subflowchart and
+    the SEAMM optimizer used the Model Chemistry, so they still do."""
+    data = {"optimizer": {"value": optimizer, "units": None}}
+    P = structure_step.StructureParameters(data=data)
+    assert P["engine"].value == expected
+    # a flowchart that has 'engine' keeps it; a new step has the default
+    data["engine"] = {"value": MC, "units": None}
+    assert structure_step.StructureParameters(data=data)["engine"].value == MC
+    assert structure_step.StructureParameters()["engine"].value == MC
+
+
+def test_source_follows_the_choice(tmp_path, configuration, monkeypatch):
     node = _Structure(tmp_path, configuration)
-    assert node.energy_source(optimizer) == "model chemistry"
-
-
-def test_source_substeps_win_over_model_chemistry(tmp_path, configuration, monkeypatch):
+    P = {"engine": MC, "optimizer": GEO}
+    assert node.energy_source(P) == MC
     monkeypatch.setattr(structure_step.structure, "has_substeps", lambda f: True)
-    node = _Structure(tmp_path, configuration)
-    assert node.energy_source("geomeTRIC/geomeTRIC") == "sub-steps"
-    # ... but the SEAMM optimizer uses only the Model Chemistry
-    assert node.energy_source("SEAMM/SEAMM") == "model chemistry"
+    assert node.energy_source({"engine": SUB, "optimizer": GEO}) == SUB
+    assert node.energy_source(P) == MC
 
 
 def test_source_neither_names_what_is_missing(tmp_path, configuration):
     node = _Structure(tmp_path, configuration, mc=False)
     with pytest.raises(RuntimeError) as e:
-        node.energy_source("geomeTRIC/geomeTRIC")
+        node.energy_source({"engine": MC, "optimizer": GEO})
     assert str(e.value) == NO_SOURCE
-    assert "properties.json" not in str(e.value)
-    with pytest.raises(RuntimeError) as e:
-        node.energy_source("SEAMM/SEAMM")
-    assert str(e.value) == SEAMM_NEEDS_MODEL_CHEMISTRY
 
 
 def test_optimize_with_neither_fails_before_any_calculation(tmp_path, configuration):
@@ -317,7 +371,7 @@ def test_session_falls_back_to_separate_calculations(configuration):
         said = []
 
         def model_chemistry(self):
-            return MC
+            return FAKE_MC
 
         def say(self, text):
             self.said.append(text)
@@ -339,7 +393,7 @@ def test_session_errors_name_the_problem(configuration):
 
     class Driver:
         def model_chemistry(self):
-            return MC
+            return FAKE_MC
 
         @contextlib.contextmanager
         def session(self, configuration):
@@ -358,7 +412,7 @@ def test_make_driver_prefers_a_warm_engine(monkeypatch):
 
     def node(options):
         return SimpleNamespace(
-            get_variable=lambda name: {**MC, "options": options},
+            get_variable=lambda name: {**FAKE_MC, "options": options},
             flowchart=SimpleNamespace(
                 plugin_manager=SimpleNamespace(get=lambda name: Step())
             ),
@@ -375,23 +429,41 @@ def test_make_driver_prefers_a_warm_engine(monkeypatch):
 # The flowchart check (the editor's Run, seamm-flowchart validate, MCP)
 # ----------------------------------------------------------------------
 def test_check_flowchart(monkeypatch):
+    from seamm.problems import is_error, fixes
+
     node = structure_step.Structure()
     model_chemistry = SimpleNamespace(extension="Model Chemistry")
     other = SimpleNamespace(extension="FromSMILES")
 
-    node.parameters["optimizer"].value = "geomeTRIC/geomeTRIC"
+    node.parameters["optimizer"].value = GEO
     problems = node.check_flowchart([other])
     assert len(problems) == 1 and NO_SOURCE in problems[0]
+    assert is_error(problems[0])
     assert node.check_flowchart([model_chemistry, other]) == []
 
-    node.parameters["optimizer"].value = "SEAMM/SEAMM"
+    node.parameters["optimizer"].value = SEAMM
     problems = node.check_flowchart([other])
     assert len(problems) == 1 and SEAMM_NEEDS_MODEL_CHEMISTRY in problems[0]
 
-    monkeypatch.setattr(structure_step.structure, "has_substeps", lambda f: True)
+    # the subflowchart chosen but empty, with a Model Chemistry: a warning, and
+    # the fix chooses the Model Chemistry
     node.parameters["optimizer"].value = "BFGS/ASE"
+    node.parameters["engine"].value = SUB
+    (problem,) = node.check_flowchart([model_chemistry])
+    assert not is_error(problem)
+    assert energy_source.USING_MODEL_CHEMISTRY in problem
+    (fix,) = fixes(problem)
+    fix.apply()
+    assert node.parameters["engine"].value == MC
+    assert node.check_flowchart([model_chemistry]) == []
+
+    # sub-steps but no Model Chemistry, with the Model Chemistry chosen: a warning
+    monkeypatch.setattr(structure_step.structure, "has_substeps", lambda f: True)
+    (problem,) = node.check_flowchart([other])
+    assert not is_error(problem) and energy_source.USING_SUBFLOWCHART in problem
+    node.parameters["engine"].value = SUB
     assert node.check_flowchart([other]) == []
-    node.parameters["optimizer"].value = "SEAMM/SEAMM"
+    node.parameters["optimizer"].value = SEAMM
     assert node.check_flowchart([other])  # sub-steps do not help it
 
     # nothing to optimize: nothing to check
@@ -425,12 +497,15 @@ def test_validate_stops_the_flowchart_of_the_report():
     assert problems and NO_SOURCE in problems[0]
 
 
-def test_description_says_model_chemistry_without_substeps():
+def test_description_follows_the_choice():
     node = structure_step.Structure()
     node._id = ("1",)
     node.flowchart = SimpleNamespace(root_directory=None, executor=None)
     text = node.description_text()
     assert "come from the flowchart's Model Chemistry" in text
+    node.parameters["engine"].value = SUB
+    text = node.description_text()
+    assert "will be calculated as follows" in text
 
 
 @pytest.mark.parametrize("optimizer", ["geomeTRIC", "ASE"])

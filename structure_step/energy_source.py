@@ -35,6 +35,73 @@ SEAMM_NEEDS_MODEL_CHEMISTRY = (
 )
 
 
+#: What the dialog says is missing for the chosen source
+NEEDS_MODEL_CHEMISTRY = (
+    "There is no Model Chemistry step before this step: add one, or get the energy "
+    "and gradients from the subflowchart."
+)
+NEEDS_SUBSTEPS = (
+    "The subflowchart (the Flowchart tab) is empty: add the calculation of the "
+    "energy and gradients (e.g. MOPAC with an Energy sub-step that saves 'energy' "
+    "and 'gradients' to JSON), or get them from the Model Chemistry."
+)
+
+#: Notes when the chosen source is missing and the other is used instead
+USING_SUBFLOWCHART = (
+    "There is no Model Chemistry before this step, so the subflowchart is used for "
+    "the energies and gradients."
+)
+USING_MODEL_CHEMISTRY = (
+    "The subflowchart is empty, so the flowchart's Model Chemistry is used for the "
+    "energies and gradients."
+)
+
+
+def choose_engine(engine, optimizer, have_model_chemistry, have_substeps):
+    """Where an optimization's energies and gradients come from.
+
+    The choice ('Energies and gradients from:') is followed when it can be; when
+    the chosen source is missing and the other is there, the other is used, with a
+    note (as the Thermochemistry step does). The SEAMM optimizer uses only the
+    Model Chemistry.
+
+    Parameters
+    ----------
+    engine : str
+        "Model Chemistry" or "subflowchart".
+    optimizer : str
+        E.g. "geomeTRIC/geomeTRIC".
+    have_model_chemistry, have_substeps : bool
+        Whether there is a Model Chemistry before the step, and sub-steps.
+
+    Returns
+    -------
+    (str, str or None)
+        "Model Chemistry" or "subflowchart", and the note when the choice could
+        not be followed.
+
+    Raises
+    ------
+    RuntimeError
+        When neither is there, naming what is missing.
+    """
+    if uses_model_chemistry_only(optimizer):
+        if have_model_chemistry:
+            return "Model Chemistry", None
+        raise RuntimeError(SEAMM_NEEDS_MODEL_CHEMISTRY)
+    if engine == "subflowchart":
+        if have_substeps:
+            return "subflowchart", None
+        if have_model_chemistry:
+            return "Model Chemistry", USING_MODEL_CHEMISTRY
+    else:
+        if have_model_chemistry:
+            return "Model Chemistry", None
+        if have_substeps:
+            return "subflowchart", USING_SUBFLOWCHART
+    raise RuntimeError(NO_SOURCE)
+
+
 def is_model_chemistry_step(node):
     """Whether a node is a Model Chemistry step (without importing that plug-in)."""
     return getattr(node, "extension", None) == "Model Chemistry" or (

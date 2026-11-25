@@ -8,7 +8,8 @@ import tkinter.ttk as ttk
 
 from .energy_source import (
     is_model_chemistry_step,
-    NO_SOURCE,
+    NEEDS_MODEL_CHEMISTRY,
+    NEEDS_SUBSTEPS,
     SEAMM_NEEDS_MODEL_CHEMISTRY,
     uses_model_chemistry_only,
 )
@@ -179,6 +180,7 @@ class TkStructure(seamm.TkNode):
         for key in (
             "target",
             "approach",
+            "engine",
             "optimizer",
             "convergence formula",
             "convergence",
@@ -247,12 +249,14 @@ class TkStructure(seamm.TkNode):
 
         row = 0
 
-        # Where the energy and gradients come from; the Flowchart tab only when
-        # the sub-steps are used
-        text, ok, uses_substeps = self.energy_source_text()
+        # Where the energy and gradients come from: what is missing in red; the
+        # Flowchart tab only when the subflowchart is used
+        text, ok, uses_subflowchart, choose = self.energy_source_text()
+        self._uses_subflowchart = uses_subflowchart
+        self._choose_engine = choose
         notebook = self["notebook"]
         flowchart_frame = self["flowchart frame"]
-        if uses_substeps:
+        if uses_subflowchart:
             notebook.add(flowchart_frame)  # shows it again if hidden
         elif notebook.select() != str(flowchart_frame):
             notebook.hide(flowchart_frame)
@@ -296,13 +300,16 @@ class TkStructure(seamm.TkNode):
             return False
 
     def energy_source_text(self):
-        """Where the optimization's energy and gradients will come from.
+        """Where the optimization's energy and gradients come from, as chosen
+        ('Energies and gradients from:'), and what is missing.
 
         Returns
         -------
-        (str, bool, bool)
-            The text for the dialog ("" when nothing is optimized), whether it
-            works, and whether the sub-steps (the Flowchart tab) are used.
+        (str, bool, bool, bool)
+            The text for the dialog ("" when there is nothing to say), whether it
+            works as chosen, whether the subflowchart (the Flowchart tab) is used,
+            and whether the choice applies (not for the SEAMM optimizer, which
+            uses only the Model Chemistry, nor when nothing is optimized).
         """
         target = self["target"].get()
         approach = self["approach"].get()
@@ -311,29 +318,25 @@ class TkStructure(seamm.TkNode):
             self.is_expr(target) or target in ("minimum", "transition state")
         ) and (self.is_expr(approach) or approach == "Optimization")
         if not optimizes:
-            return "", True, False
+            return "", True, False, False
         have_mc = self._upstream_has_model_chemistry()
         if uses_model_chemistry_only(optimizer):
             if have_mc:
                 return (
-                    "Energy and gradients: from the flowchart's Model Chemistry.",
+                    "The SEAMM optimizer gets the energy and gradients from the "
+                    "flowchart's Model Chemistry.",
                     True,
                     False,
+                    False,
                 )
-            return SEAMM_NEEDS_MODEL_CHEMISTRY, False, False
-        if self._has_substeps():
-            text = "Energy and gradients: from the sub-steps in the Flowchart tab"
-            if have_mc:
-                text += " (the flowchart's Model Chemistry is not used by this step)"
-            return text + ".", True, True
+            return SEAMM_NEEDS_MODEL_CHEMISTRY, False, False, False
+        if self["engine"].get() == "subflowchart":
+            if self._has_substeps():
+                return "", True, True, True
+            return NEEDS_SUBSTEPS, False, True, True
         if have_mc:
-            return (
-                "Energy and gradients: from the flowchart's Model Chemistry (or "
-                "put the calculation in the Flowchart tab to use it instead).",
-                True,
-                True,
-            )
-        return NO_SOURCE, False, True
+            return "", True, False, True
+        return NEEDS_MODEL_CHEMISTRY, False, False, True
 
     def reset_structure_frame(self, widget=None):
         """Layout the widgets in the structure frame
@@ -358,7 +361,10 @@ class TkStructure(seamm.TkNode):
                 row += 1
         elif target in ("minimum", "transition state"):
             # Main controls
-            for key in ("target", "approach"):
+            keys = ["target", "approach"]
+            if getattr(self, "_choose_engine", False):
+                keys.append("engine")
+            for key in keys:
                 self[key].grid(row=row, column=0, columnspan=2, sticky=tk.W)
                 widgets.append(self[key])
                 row += 1
@@ -475,9 +481,10 @@ class TkStructure(seamm.TkNode):
                         "max steps",
                         "calculate hessian",
                         "continue if not converged",
-                        "on success",
-                        "on error",
                     ]
+                    if getattr(self, "_uses_subflowchart", False):
+                        # what to keep of the subflowchart's step directories
+                        keys += ["on success", "on error"]
                 for key in keys:
                     self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
                     widgets.append(self[key])

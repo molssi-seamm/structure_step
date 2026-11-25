@@ -25,12 +25,11 @@ from seamm_util import Q_, units_class, getParser
 import seamm_util.printing as printing
 from seamm_util.printing import FormattedText as __
 from .energy_source import (
+    choose_engine,
     has_substeps,
     is_model_chemistry_step,
     make_driver,
     model_chemistry_session,
-    NO_SOURCE,
-    SEAMM_NEEDS_MODEL_CHEMISTRY,
     uses_model_chemistry_only,
 )
 
@@ -349,7 +348,7 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             and target in ("minimum", "transition state")
             and (
                 uses_model_chemistry_only(P["optimizer"])
-                or not has_substeps(self.subflowchart)
+                or P.get("engine", "Model Chemistry") != "subflowchart"
             )
         ):
             result += (
@@ -493,10 +492,10 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         if P["approach"].lower() == "optimization":
             optimizer = P["optimizer"].lower()
             if optimizer.endswith("/seamm"):
-                self.energy_source(P["optimizer"])
+                self.energy_source(P)
                 self.run_seamm_optimizer(P, PP)
             elif optimizer.endswith("/ase") or optimizer.endswith("/geometric"):
-                with self.energy_engine(P["optimizer"]):
+                with self.energy_engine(P):
                     if optimizer.endswith("/ase"):
                         self.run_ase_optimizer(P, PP)
                     else:
@@ -527,55 +526,42 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
     # ------------------------------------------------------------------
     # Where the energies and gradients come from
     # ------------------------------------------------------------------
-    def energy_source(self, optimizer):
-        """Where the optimizer's energies and gradients come from.
-
-        The sub-steps when there are any (a note says so if a Model Chemistry is
-        upstream too, since it is not used here); else the flowchart's Model
-        Chemistry. The SEAMM optimizer uses only the Model Chemistry.
+    def energy_source(self, P):
+        """Where the optimization's energies and gradients come from: the
+        'Energies and gradients from:' choice, or the other source, with a note,
+        when the chosen one is missing (see ``energy_source.choose_engine``).
 
         Parameters
         ----------
-        optimizer : str
-            The optimizer, e.g. "geomeTRIC/geomeTRIC".
+        P : dict
+            The values of the parameters.
 
         Returns
         -------
         str
-            "sub-steps" or "model chemistry"
+            "Model Chemistry" or "subflowchart"
 
         Raises
         ------
         RuntimeError
             When there is neither, naming what is missing.
         """
-        have_mc = self.variable_exists("_model_chemistry")
-        if uses_model_chemistry_only(optimizer):
-            if not have_mc:
-                raise RuntimeError(SEAMM_NEEDS_MODEL_CHEMISTRY)
-            return "model chemistry"
-        if has_substeps(self.subflowchart):
-            if have_mc:
-                level = self.get_variable("_model_chemistry").get("level", "")
-                printer.important(
-                    __(
-                        "The energy and gradients come from this step's sub-steps; "
-                        f"the flowchart's Model Chemistry ({level}) is not used by "
-                        "this step.",
-                        indent=self.indent + 4 * " ",
-                    )
-                )
-            return "sub-steps"
-        if have_mc:
-            return "model chemistry"
-        raise RuntimeError(NO_SOURCE)
+        engine, note = choose_engine(
+            P.get("engine", "Model Chemistry"),
+            P["optimizer"],
+            self.variable_exists("_model_chemistry"),
+            has_substeps(self.subflowchart),
+        )
+        if note is not None:
+            printer.important(__(note, indent=self.indent + 4 * " "))
+        return engine
 
     @contextlib.contextmanager
-    def energy_engine(self, optimizer):
+    def energy_engine(self, P):
         """For the geomeTRIC and ASE optimizers: while open, their energies and
         gradients come from the Model Chemistry's engine (``self._mc_session``)
         when that is the source, else from the sub-steps."""
-        if self.energy_source(optimizer) == "sub-steps":
+        if self.energy_source(P) == "subflowchart":
             yield None
             return
         with model_chemistry_session(
@@ -742,16 +728,36 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             return []
         if not self.is_expr(approach) and approach != "Optimization":
             return []
-        if any(is_model_chemistry_step(node) for node in preceding):
-            return []
         optimizer = P["optimizer"].value
-        if self.is_expr(optimizer):
+        engine = P["engine"].value
+        if self.is_expr(optimizer) or self.is_expr(engine):
             return []
-        if uses_model_chemistry_only(optimizer):
-            return [f"'{self.title}': {SEAMM_NEEDS_MODEL_CHEMISTRY}"]
-        if not has_substeps(self.subflowchart):
-            return [f"'{self.title}': {NO_SOURCE}"]
-        return []
+        try:
+            chosen, note = choose_engine(
+                engine,
+                optimizer,
+                any(is_model_chemistry_step(node) for node in preceding),
+                has_substeps(self.subflowchart),
+            )
+        except RuntimeError as e:
+            return [f"'{self.title}': {e}"]
+        if note is None:
+            return []
+        # It will work, but not as chosen: say so, and offer to choose what is used
+        from seamm.problems import Edit, Fix, Problem, WARNING
+
+        return [
+            Problem(
+                f"'{self.title}': {note}",
+                severity=WARNING,
+                fixes=[
+                    Fix(
+                        f"Get the energies and gradients from the {chosen}",
+                        [Edit(self, "engine", chosen)],
+                    )
+                ],
+            )
+        ]
 
     #: the SEAMM optimizer's names for the coordinate systems
     SEAMM_COORDINATES = {
