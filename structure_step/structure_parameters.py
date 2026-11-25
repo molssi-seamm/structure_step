@@ -95,6 +95,20 @@ class StructureParameters(seamm.Parameters):
             "description": "Target:",
             "help_text": "The type of structure that is the target.",
         },
+        "engine": {
+            "default": "Model Chemistry",
+            "kind": "enum",
+            "default_units": "",
+            "enumeration": ("Model Chemistry", "subflowchart"),
+            "format_string": "",
+            "description": "Energies and gradients from:",
+            "help_text": (
+                "The flowchart's Model Chemistry, run as a warm engine over MDI "
+                "(or as a separate calculation per step when the program has no "
+                "engine here), or this step's subflowchart, run once per step. The "
+                "SEAMM optimizer always uses the Model Chemistry."
+            ),
+        },
         "optimizer": {
             "default": "geomeTRIC/geomeTRIC",
             "kind": "enum",
@@ -329,6 +343,20 @@ class StructureParameters(seamm.Parameters):
         """
 
         logger.debug("StructureParameters.__init__")
+
+        # A flowchart saved before 'engine' existed: the geomeTRIC and ASE
+        # optimizers ran the subflowchart and the SEAMM optimizer used the Model
+        # Chemistry, so keep doing that.
+        if data is not None and "engine" not in data and "optimizer" in data:
+            optimizer = data["optimizer"]
+            if isinstance(optimizer, dict):
+                optimizer = optimizer.get("value")
+            engine = (
+                "Model Chemistry"
+                if isinstance(optimizer, str) and optimizer.lower().endswith("/seamm")
+                else "subflowchart"
+            )
+            data = {**data, "engine": {"value": engine, "units": None}}
 
         super().__init__(
             defaults={
