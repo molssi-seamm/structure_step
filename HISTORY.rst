@@ -1,6 +1,28 @@
 =======
 History
 =======
+2026.11.25.1 -- Every optimizer works from the Model Chemistry
+    * A new choice, 'Energies and gradients from:', with the Thermochemistry step's
+      choices: the flowchart's 'Model Chemistry' (the default) or the step's
+      'subflowchart'. The geomeTRIC and ASE optimizers can now use the Model
+      Chemistry: over a warm MDI engine when the program has one here, otherwise as
+      one separate calculation per step. Before, only the SEAMM optimizer could,
+      and the others stopped at the first gradient with "There are no energy and
+      gradients in properties.json". The SEAMM optimizer always uses the Model
+      Chemistry, and now also runs over separate calculations when the program has
+      no MDI engine here, rather than stopping.
+    * Flowcharts saved before this release keep their source: the subflowchart for
+      the geomeTRIC and ASE optimizers, the Model Chemistry for the SEAMM optimizer.
+    * When the chosen source is missing and the other is there -- no Model
+      Chemistry before the step, or an empty subflowchart -- the other is used, with
+      a note, and the flowchart check warns, offering to change the choice.
+    * A Structure step with neither is reported by the flowchart check, so the
+      editor's Run, ``seamm-flowchart validate`` and the MCP server stop it before
+      it is queued; at run time it stops with an error that says what to add. Sub-
+      steps that save no energy and gradients to JSON also get an error saying so.
+    * The dialog shows the Flowchart tab and the step-subdirectory options only for
+      the subflowchart, and says in red what is missing for the choice.
+
 2026.11.25 -- The SEAMM optimizer's minimum check is reported
     * With the SEAMM optimizer and a cheap level, the results now say whether the end
       point is a minimum, its lowest frequency, the saddle escapes and the

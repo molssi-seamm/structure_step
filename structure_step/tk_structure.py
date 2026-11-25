@@ -6,6 +6,13 @@ import pprint  # noqa: F401
 import tkinter as tk  # noqa: F401
 import tkinter.ttk as ttk
 
+from .energy_source import (
+    is_model_chemistry_step,
+    NEEDS_MODEL_CHEMISTRY,
+    NEEDS_SUBSTEPS,
+    SEAMM_NEEDS_MODEL_CHEMISTRY,
+    uses_model_chemistry_only,
+)
 from .structure_parameters import StructureParameters
 import seamm
 from seamm_util import ureg, Q_, units_class  # noqa: F401
@@ -137,6 +144,14 @@ class TkStructure(seamm.TkNode):
             namespace=self.namespace,
         )
         self.tk_subflowchart.draw()
+        # Back from the Flowchart tab, the sub-steps may have changed
+        notebook.bind("<<NotebookTabChanged>>", self.reset_dialog, add="+")
+
+        # Where the energy and gradients come from, or that there is nothing to
+        # give them (red)
+        self["energy source"] = ttk.Label(
+            self["frame"], text="", justify=tk.LEFT, wraplength=600
+        )
 
         # Fill in the control parameters
         # Shortcut for parameters
@@ -165,6 +180,7 @@ class TkStructure(seamm.TkNode):
         for key in (
             "target",
             "approach",
+            "engine",
             "optimizer",
             "convergence formula",
             "convergence",
@@ -233,6 +249,24 @@ class TkStructure(seamm.TkNode):
 
         row = 0
 
+        # Where the energy and gradients come from: what is missing in red; the
+        # Flowchart tab only when the subflowchart is used
+        text, ok, uses_subflowchart, choose = self.energy_source_text()
+        self._uses_subflowchart = uses_subflowchart
+        self._choose_engine = choose
+        notebook = self["notebook"]
+        flowchart_frame = self["flowchart frame"]
+        if uses_subflowchart:
+            notebook.add(flowchart_frame)  # shows it again if hidden
+        elif notebook.select() != str(flowchart_frame):
+            notebook.hide(flowchart_frame)
+        if text:
+            self["energy source"].configure(
+                text=text, foreground="black" if ok else "red"
+            )
+            self["energy source"].grid(row=row, column=0, sticky=tk.W, pady=5)
+            row += 1
+
         self["structure frame"].grid(row=row, column=0, sticky=tk.EW, pady=10)
         row += 1
         self.reset_structure_frame()
@@ -242,6 +276,67 @@ class TkStructure(seamm.TkNode):
         self.reset_structure_handling_frame()
 
         return row
+
+    def _has_substeps(self):
+        """Whether the subflowchart in the Flowchart tab has a step connected
+        after its start node (the graphical one: it is copied to the step only
+        when the dialog closes)."""
+        try:
+            start = self.tk_subflowchart.get_node("1")
+            return any(
+                edge.edge_type == "execution"
+                for edge in self.tk_subflowchart.edges(start, direction="out")
+            )
+        except Exception:
+            return self.node.subflowchart.get_node("1").next() is not None
+
+    def _upstream_has_model_chemistry(self):
+        """Whether a Model Chemistry step comes before this one. On any error
+        (e.g. the step is not yet linked into the flowchart) False, so the user
+        is told what is needed."""
+        try:
+            return any(is_model_chemistry_step(n) for n in self.previous_nodes())
+        except Exception:
+            return False
+
+    def energy_source_text(self):
+        """Where the optimization's energy and gradients come from, as chosen
+        ('Energies and gradients from:'), and what is missing.
+
+        Returns
+        -------
+        (str, bool, bool, bool)
+            The text for the dialog ("" when there is nothing to say), whether it
+            works as chosen, whether the subflowchart (the Flowchart tab) is used,
+            and whether the choice applies (not for the SEAMM optimizer, which
+            uses only the Model Chemistry, nor when nothing is optimized).
+        """
+        target = self["target"].get()
+        approach = self["approach"].get()
+        optimizer = self["optimizer"].get()
+        optimizes = (
+            self.is_expr(target) or target in ("minimum", "transition state")
+        ) and (self.is_expr(approach) or approach == "Optimization")
+        if not optimizes:
+            return "", True, False, False
+        have_mc = self._upstream_has_model_chemistry()
+        if uses_model_chemistry_only(optimizer):
+            if have_mc:
+                return (
+                    "The SEAMM optimizer gets the energy and gradients from the "
+                    "flowchart's Model Chemistry.",
+                    True,
+                    False,
+                    False,
+                )
+            return SEAMM_NEEDS_MODEL_CHEMISTRY, False, False, False
+        if self["engine"].get() == "subflowchart":
+            if self._has_substeps():
+                return "", True, True, True
+            return NEEDS_SUBSTEPS, False, True, True
+        if have_mc:
+            return "", True, False, True
+        return NEEDS_MODEL_CHEMISTRY, False, False, True
 
     def reset_structure_frame(self, widget=None):
         """Layout the widgets in the structure frame
@@ -266,7 +361,10 @@ class TkStructure(seamm.TkNode):
                 row += 1
         elif target in ("minimum", "transition state"):
             # Main controls
-            for key in ("target", "approach"):
+            keys = ["target", "approach"]
+            if getattr(self, "_choose_engine", False):
+                keys.append("engine")
+            for key in keys:
                 self[key].grid(row=row, column=0, columnspan=2, sticky=tk.W)
                 widgets.append(self[key])
                 row += 1
@@ -383,9 +481,10 @@ class TkStructure(seamm.TkNode):
                         "max steps",
                         "calculate hessian",
                         "continue if not converged",
-                        "on success",
-                        "on error",
                     ]
+                    if getattr(self, "_uses_subflowchart", False):
+                        # what to keep of the subflowchart's step directories
+                        keys += ["on success", "on error"]
                 for key in keys:
                     self[key].grid(row=row, column=0, columnspan=2, sticky=tk.EW)
                     widgets.append(self[key])
