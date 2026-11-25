@@ -408,6 +408,38 @@ metadata["results"] = {
         "type": "float",
         "units": "kJ/mol/Å",
     },
+    "is_minimum": {
+        "description": "Whether the end point passed the minimum check",
+        "dimensionality": "scalar",
+        "type": "bool",
+        "units": "",
+    },
+    "lowest_frequency": {
+        "description": "The lowest vibrational frequency at the end point (negative "
+        "if imaginary), from the minimum check",
+        "dimensionality": "scalar",
+        "type": "float",
+        "units": "1/cm",
+    },
+    "n_escapes": {
+        "description": "The number of escapes from saddle points",
+        "dimensionality": "scalar",
+        "type": "int",
+        "units": "",
+    },
+    "n_confirmations": {
+        "description": "The number of cheap-level imaginary modes checked with the "
+        "expensive gradient (two gradients each)",
+        "dimensionality": "scalar",
+        "type": "int",
+        "units": "",
+    },
+    "n_cheap_hessians": {
+        "description": "The number of Hessians computed at the cheap level",
+        "dimensionality": "scalar",
+        "type": "int",
+        "units": "",
+    },
     "t_elapsed": {
         "description": "The elapsed time for the optimization",
         "dimensionality": "scalar",

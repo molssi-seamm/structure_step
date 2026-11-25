@@ -165,6 +165,26 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             ],
         }
 
+        if "is_minimum" in self._results:
+            table[""].append("Minimum?")
+            table["Value"].append("Yes" if self._results["is_minimum"] else "**NO**")
+            table["Units"].append("")
+            if "lowest_frequency" in self._results:
+                table[""].append("Lowest frequency")
+                table["Value"].append(f"{self._results['lowest_frequency']:.1f}")
+                table["Units"].append("cm^-1")
+            for key, label in (
+                ("n_escapes", "Saddle escapes"),
+                ("n_confirmations", "Modes confirmed"),
+            ):
+                table[""].append(label)
+                table["Value"].append(self._results[key])
+                table["Units"].append("")
+        if "n_cheap_hessians" in self._results:
+            table[""].append("Cheap Hessians")
+            table["Value"].append(self._results["n_cheap_hessians"])
+            table["Units"].append("")
+
         tmp = tabulate(
             table,
             headers="keys",
@@ -436,6 +456,8 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         }
         self._last_coordinates = None
         self._step = 0
+        # results from an earlier run of this step (e.g. in a loop) must not carry over
+        self._results = {}
 
         # Get the final configuration
         _, self._working_configuration = self.get_system_configuration(P)
@@ -552,8 +574,27 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         ):
             self._results[name] = Q_(last.get(key, 0.0), "eV/Å").m_as("kJ/mol/Å")
         self._results["maximum_step"] = float(last.get("max step (Å)", 0.0))
+        self._results.update(self.minimum_check_results(last))
         if not converged and P["continue if not converged"] not in (True, "yes"):
             raise RuntimeError(f"Optimization did not converge in {max_steps} steps")
+
+    @staticmethod
+    def minimum_check_results(last):
+        """The results of the SEAMM optimizer's minimum check, from seamm_exec's
+        record of the optimization (``last_optimization``): whether the end point is
+        a minimum, its lowest frequency, the saddle escapes and the cheap-level modes
+        confirmed, when the check ran (a cheap level and "check minimum"); and the
+        number of cheap-level Hessians."""
+        results = {}
+        if last.get("minimum") is not None:
+            results["is_minimum"] = bool(last["minimum"])
+            if last.get("lowest frequency") is not None:
+                results["lowest_frequency"] = float(last["lowest frequency"])
+            results["n_escapes"] = int(last.get("escapes", 0))
+            results["n_confirmations"] = int(last.get("confirmations", 0))
+        if "cheap hessians" in last:
+            results["n_cheap_hessians"] = int(last["cheap hessians"])
+        return results
 
     def plot(self, E_units="", F_units=""):
         """Generate a plot of the convergence of the geometry optimization."""
