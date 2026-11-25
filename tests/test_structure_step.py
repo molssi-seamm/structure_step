@@ -65,3 +65,33 @@ def test_description_with_an_empty_formula():
     node._id = ("1",)
     node.flowchart = SimpleNamespace(root_directory=None, executor=None)
     assert "optimized" in node.description_text(short=True)
+
+
+def test_minimum_check_results():
+    """The minimum check's verdict is kept (it was not before 2026.11.25)."""
+    from structure_step import Structure
+
+    last = {
+        "converged": True,
+        "evaluations": 6,
+        "cheap hessians": 2,
+        "minimum": True,
+        "lowest frequency": 41.2,
+        "escapes": 0,
+        "confirmations": 1,
+    }
+    assert Structure.minimum_check_results(last) == {
+        "is_minimum": True,
+        "lowest_frequency": 41.2,
+        "n_escapes": 0,
+        "n_confirmations": 1,
+        "n_cheap_hessians": 2,
+    }
+    # no check (no cheap level): only what there is
+    assert Structure.minimum_check_results({"converged": True, "minimum": None}) == {}
+    # an older seamm-exec without the confirmations
+    assert Structure.minimum_check_results({"minimum": False, "escapes": 2}) == {
+        "is_minimum": False,
+        "n_escapes": 2,
+        "n_confirmations": 0,
+    }
