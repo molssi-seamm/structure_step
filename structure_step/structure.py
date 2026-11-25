@@ -628,12 +628,32 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         )
         return energy, gradients
 
+    @contextlib.contextmanager
+    def _substeps_gave_no_results(self):
+        """Say what is missing when the sub-steps ran but left no energy and
+        gradients for the optimizer (the connectors' message spoke of a
+        properties.json): a sub-step saves them only when its results ask for
+        'energy' and 'gradients' in JSON."""
+        try:
+            yield
+        except RuntimeError as e:
+            if "There are no energy and gradients in" not in str(e):
+                raise
+            raise RuntimeError(
+                "The sub-steps of the Structure step gave no energy and gradients "
+                f"(step {self._step}): in the results of the calculation that gives "
+                "them (e.g. the MOPAC Energy sub-step), save 'energy' and "
+                "'gradients' to JSON; or remove the sub-steps to use the "
+                "flowchart's Model Chemistry."
+            ) from e
+
     def geometric_calculate_gradients(self, coordinates):
         """The energy (E_h) and gradients (E_h/bohr) for geomeTRIC: from the Model
         Chemistry's engine when it is the source, else the sub-steps (the
         geomeTRIC connector's own method)."""
         if self._mc_session is None:
-            return super().geometric_calculate_gradients(coordinates)
+            with self._substeps_gave_no_results():
+                return super().geometric_calculate_gradients(coordinates)
         energy, gradients = self.model_chemistry_energy_and_gradients(coordinates)
 
         self.geometric_read_bibliography()
@@ -657,7 +677,8 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         engine when it is the source, else the sub-steps (the ASE connector's own
         method)."""
         if self._mc_session is None:
-            return super().ase_calculator(calculator, properties, system_changes)
+            with self._substeps_gave_no_results():
+                return super().ase_calculator(calculator, properties, system_changes)
         calculator.results = {}
         energy, gradients = self.model_chemistry_energy_and_gradients(
             calculator.atoms.positions

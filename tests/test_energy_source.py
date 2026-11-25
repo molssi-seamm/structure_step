@@ -431,3 +431,32 @@ def test_description_says_model_chemistry_without_substeps():
     node.flowchart = SimpleNamespace(root_directory=None, executor=None)
     text = node.description_text()
     assert "come from the flowchart's Model Chemistry" in text
+
+
+@pytest.mark.parametrize("optimizer", ["geomeTRIC", "ASE"])
+def test_substeps_without_json_results_say_what_is_missing(
+    tmp_path, configuration, monkeypatch, optimizer
+):
+    """Sub-steps that save no energy and gradients to JSON: the error says to save
+    them (it spoke of a properties.json)."""
+    import seamm_ase
+    import seamm_geometric
+
+    def no_results(self, *args, **kwargs):
+        raise RuntimeError(
+            "There are no energy and gradients in properties.json for step 1 in x."
+        )
+
+    if optimizer == "geomeTRIC":
+        monkeypatch.setattr(
+            seamm_geometric.geomeTRIC_mixin, "geometric_calculate_gradients", no_results
+        )
+        name, args = "geometric_calculate_gradients", (XYZ,)
+    else:
+        monkeypatch.setattr(seamm_ase.ASE_mixin, "ase_calculator", no_results)
+        name, args = "ase_calculator", (SimpleNamespace(),)
+    node = _Structure(tmp_path, configuration)
+    with pytest.raises(RuntimeError) as e:
+        getattr(node, name)(*args)
+    assert "save 'energy' and 'gradients' to JSON" in str(e.value)
+    assert "properties.json" not in str(e.value)
