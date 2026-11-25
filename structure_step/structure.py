@@ -2,6 +2,7 @@
 
 """Non-graphical part of the Structure step in a SEAMM flowchart"""
 
+import contextlib
 import importlib
 import logging
 from pathlib import Path
@@ -9,6 +10,7 @@ import pprint  # noqa: F401
 import sys
 import time
 
+import numpy as np
 from tabulate import tabulate
 from rdkit.Chem import rdmolops, EnumerateStereoisomers, rdDistGeom, rdMolTransforms
 
@@ -17,10 +19,20 @@ import molsystem
 import seamm
 from seamm import standard_parameters
 from seamm_ase import ASE_mixin
+from ase.calculators.calculator import all_changes as ASE_all_changes
 from seamm_geometric import geomeTRIC_mixin
 from seamm_util import Q_, units_class, getParser
 import seamm_util.printing as printing
 from seamm_util.printing import FormattedText as __
+from .energy_source import (
+    has_substeps,
+    is_model_chemistry_step,
+    make_driver,
+    model_chemistry_session,
+    NO_SOURCE,
+    SEAMM_NEEDS_MODEL_CHEMISTRY,
+    uses_model_chemistry_only,
+)
 
 # In addition to the normal logger, two logger-like printing facilities are
 # defined: "job" and "printer". "job" send output to the main job.out file for
@@ -116,6 +128,9 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         self._data = {}
         self._results = {}
         self._logfile = None
+        # The Model Chemistry's engine session while an optimizer uses it (else
+        # the energies and gradients come from the sub-steps)
+        self._mc_session = None
 
     @property
     def version(self):
@@ -329,7 +344,19 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
         self.subflowchart.executor = self.flowchart.executor
         self.subflowchart.in_jobserver = self.subflowchart.in_jobserver
 
-        if not short and target in ("minimum", "transition state"):
+        if (
+            not short
+            and target in ("minimum", "transition state")
+            and (
+                uses_model_chemistry_only(P["optimizer"])
+                or not has_substeps(self.subflowchart)
+            )
+        ):
+            result += (
+                "\n\n    The energy and forces will come from the flowchart's Model "
+                "Chemistry.\n"
+            )
+        elif not short and target in ("minimum", "transition state"):
             # Get the first real node
             node = self.subflowchart.get_node("1").next()
             result += "\n\n    The energy and forces will be calculated as follows:\n"
@@ -464,19 +491,23 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
 
         tic = time.perf_counter_ns()
         if P["approach"].lower() == "optimization":
-            if P["optimizer"].lower().endswith("/ase"):
-                self.run_ase_optimizer(P, PP)
-            elif P["optimizer"].lower().endswith("/seamm"):
+            optimizer = P["optimizer"].lower()
+            if optimizer.endswith("/seamm"):
+                self.energy_source(P["optimizer"])
                 self.run_seamm_optimizer(P, PP)
-            elif P["optimizer"].lower().endswith("/geometric"):
-                try:
-                    self.run_geomeTRIC_optimizer(P, PP)
-                except Exception as e:
-                    if "did not converge" in str(e):
-                        if not P["continue if not converged"]:
-                            raise
+            elif optimizer.endswith("/ase") or optimizer.endswith("/geometric"):
+                with self.energy_engine(P["optimizer"]):
+                    if optimizer.endswith("/ase"):
+                        self.run_ase_optimizer(P, PP)
                     else:
-                        raise
+                        try:
+                            self.run_geomeTRIC_optimizer(P, PP)
+                        except Exception as e:
+                            if "did not converge" in str(e):
+                                if not P["continue if not converged"]:
+                                    raise
+                            else:
+                                raise
             else:
                 raise ValueError(f"Unknown optimizer '{P['optimizer']}' in Structure")
         else:
@@ -492,6 +523,214 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
             configuration=self._working_configuration,
             data=self._results,
         )
+
+    # ------------------------------------------------------------------
+    # Where the energies and gradients come from
+    # ------------------------------------------------------------------
+    def energy_source(self, optimizer):
+        """Where the optimizer's energies and gradients come from.
+
+        The sub-steps when there are any (a note says so if a Model Chemistry is
+        upstream too, since it is not used here); else the flowchart's Model
+        Chemistry. The SEAMM optimizer uses only the Model Chemistry.
+
+        Parameters
+        ----------
+        optimizer : str
+            The optimizer, e.g. "geomeTRIC/geomeTRIC".
+
+        Returns
+        -------
+        str
+            "sub-steps" or "model chemistry"
+
+        Raises
+        ------
+        RuntimeError
+            When there is neither, naming what is missing.
+        """
+        have_mc = self.variable_exists("_model_chemistry")
+        if uses_model_chemistry_only(optimizer):
+            if not have_mc:
+                raise RuntimeError(SEAMM_NEEDS_MODEL_CHEMISTRY)
+            return "model chemistry"
+        if has_substeps(self.subflowchart):
+            if have_mc:
+                level = self.get_variable("_model_chemistry").get("level", "")
+                printer.important(
+                    __(
+                        "The energy and gradients come from this step's sub-steps; "
+                        f"the flowchart's Model Chemistry ({level}) is not used by "
+                        "this step.",
+                        indent=self.indent + 4 * " ",
+                    )
+                )
+            return "sub-steps"
+        if have_mc:
+            return "model chemistry"
+        raise RuntimeError(NO_SOURCE)
+
+    @contextlib.contextmanager
+    def energy_engine(self, optimizer):
+        """For the geomeTRIC and ASE optimizers: while open, their energies and
+        gradients come from the Model Chemistry's engine (``self._mc_session``)
+        when that is the source, else from the sub-steps."""
+        if self.energy_source(optimizer) == "sub-steps":
+            yield None
+            return
+        with model_chemistry_session(
+            self, self._working_configuration, print_to=printer
+        ) as session:
+            self._mc_session = session
+            try:
+                yield session
+            finally:
+                self._mc_session = None
+
+    def model_chemistry_energy_and_gradients(self, coordinates):
+        """The energy (kJ/mol) and gradients (kJ/mol/Å, (n, 3)) at the coordinates
+        (Å) from the Model Chemistry's engine; also sets the working
+        configuration's coordinates and records the step for the convergence
+        table and graph."""
+        self._step += 1
+        xyz = np.asarray(coordinates, dtype=float).reshape(-1, 3)
+        self._working_configuration.atoms.set_coordinates(xyz, fractionals=False)
+        engine = self._mc_session.engine
+        engine.set_coordinates(xyz, units="Å")
+        energy = Q_(engine.energy(units="eV"), "eV").m_as("kJ/mol")
+        forces = np.asarray(engine.forces(units="eV/Å"), dtype=float).reshape(-1, 3)
+        gradients = -Q_(forces, "eV/Å").m_as("kJ/mol/Å")
+
+        norms = np.linalg.norm(gradients, axis=1)
+        max_force = float(np.max(norms))
+        rms_force = float(np.sqrt(np.mean(norms**2)))
+        if self._step > 1 and self._last_coordinates is not None:
+            max_step = float(
+                np.max(np.linalg.norm(xyz - self._last_coordinates, axis=1))
+            )
+        else:
+            max_step = 0.0
+        self._last_coordinates = np.array(xyz)
+        for key, value in (
+            ("step", self._step),
+            ("energy", energy),
+            ("max_force", max_force),
+            ("rms_force", rms_force),
+            ("max_step", max_step),
+        ):
+            self._data.setdefault(key, []).append(value)
+        self._results.update(
+            energy=energy,
+            nsteps=self._step,
+            maximum_gradient=max_force,
+            rms_gradient=rms_force,
+            maximum_step=max_step,
+        )
+        return energy, gradients
+
+    def geometric_calculate_gradients(self, coordinates):
+        """The energy (E_h) and gradients (E_h/bohr) for geomeTRIC: from the Model
+        Chemistry's engine when it is the source, else the sub-steps (the
+        geomeTRIC connector's own method)."""
+        if self._mc_session is None:
+            return super().geometric_calculate_gradients(coordinates)
+        energy, gradients = self.model_chemistry_energy_and_gradients(coordinates)
+
+        self.geometric_read_bibliography()
+        if "seamm_geometric" in self._bibliography:
+            self.references.cite(
+                raw=self._bibliography["seamm_geometric"],
+                alias="seamm_geometric",
+                module="seamm_geometric",
+                level=2,
+                note="Main reference for the geomeTRIC connector for SEAMM.",
+            )
+        return (
+            Q_(energy, "kJ/mol").m_as("E_h"),
+            Q_(gradients, "kJ/mol/Å").m_as("E_h/a_0"),
+        )
+
+    def ase_calculator(
+        self, calculator, properties=["energy"], system_changes=ASE_all_changes
+    ):
+        """The energy and forces for an ASE optimizer: from the Model Chemistry's
+        engine when it is the source, else the sub-steps (the ASE connector's own
+        method)."""
+        if self._mc_session is None:
+            return super().ase_calculator(calculator, properties, system_changes)
+        calculator.results = {}
+        energy, gradients = self.model_chemistry_energy_and_gradients(
+            calculator.atoms.positions
+        )
+        calculator.results["energy"] = Q_(energy, "kJ/mol").m_as("eV")
+        calculator.results["forces"] = -Q_(gradients, "kJ/mol/Å").m_as("eV/Å")
+
+        if self._logfile is not None:
+            headers = [
+                "Step",
+                "E (kJ/mol)",
+                "Fmax (kJ/mol/Å)",
+                "Frms (kJ/mol/Å)",
+                "max step (Å)",
+            ]
+            with open(self._logfile, "w") as fd:
+                fd.write(
+                    tabulate(
+                        self._data,
+                        headers=headers,
+                        tablefmt="rounded_outline",
+                        floatfmt=".3f",
+                    )
+                )
+                fd.write("\n")
+        self.plot(E_units="kJ/mol", F_units="kJ/mol/Å")
+
+        self.ase_read_bibliography()
+        if "seamm_ase" in self._bibliography:
+            self.references.cite(
+                raw=self._bibliography["seamm_ase"],
+                alias="seamm_ase",
+                module="seamm_ase",
+                level=self.citation_level,
+                note="The principle citation for the ASE connector for SEAMM.",
+            )
+
+    def check_flowchart(self, preceding):
+        """Check, before the job runs, that an optimization can get its energy and
+        gradients: from sub-steps, or from a Model Chemistry step before this one
+        (the SEAMM optimizer only from the Model Chemistry).
+
+        Called by SEAMM's flowchart checks (the editor's Run, ``seamm-flowchart
+        validate`` and the MCP server), so such a flowchart is stopped before it
+        is queued rather than failing at its first gradient.
+
+        Parameters
+        ----------
+        preceding : [seamm.Node]
+            The steps that run before this one.
+
+        Returns
+        -------
+        [str]
+            The problems found; empty if none.
+        """
+        P = self.parameters
+        target = P["target"].value
+        approach = P["approach"].value
+        if not self.is_expr(target) and target not in ("minimum", "transition state"):
+            return []
+        if not self.is_expr(approach) and approach != "Optimization":
+            return []
+        if any(is_model_chemistry_step(node) for node in preceding):
+            return []
+        optimizer = P["optimizer"].value
+        if self.is_expr(optimizer):
+            return []
+        if uses_model_chemistry_only(optimizer):
+            return [f"'{self.title}': {SEAMM_NEEDS_MODEL_CHEMISTRY}"]
+        if not has_substeps(self.subflowchart):
+            return [f"'{self.title}': {NO_SOURCE}"]
+        return []
 
     #: the SEAMM optimizer's names for the coordinate systems
     SEAMM_COORDINATES = {
@@ -522,8 +761,6 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
     def run_seamm_optimizer(self, P, PP):
         """Optimize with seamm_optimizer over the flowchart's Model Chemistry (a
         warm MDI engine), with a model or cheap-level Hessian."""
-        from seamm_exec.hessian import HessianDriver
-
         configuration = self._working_configuration
         n_atoms = configuration.n_atoms
         fmax = P["Maximum atomic gradient criterion"]
@@ -548,13 +785,10 @@ class Structure(seamm.Node, ASE_mixin, geomeTRIC_mixin):
                 "geometric" if P.get("model hessian") == "geomeTRIC guess" else "lindh"
             )
 
-        driver = HessianDriver(self, who="The Structure step", print_to=printer)
-        with driver.session(configuration) as session:
-            if session is None:
-                raise RuntimeError(
-                    "The SEAMM optimizer needs a Model Chemistry that runs as an MDI "
-                    "engine here (e.g. ORCA, MOPAC, xTB)."
-                )
+        driver = make_driver(self, print_to=printer)
+        with model_chemistry_session(
+            self, configuration, driver=driver, print_to=printer
+        ) as session:
             converged = driver.optimize_in_blocks(
                 session,
                 fmax=fmax,

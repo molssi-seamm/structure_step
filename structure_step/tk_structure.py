@@ -6,6 +6,12 @@ import pprint  # noqa: F401
 import tkinter as tk  # noqa: F401
 import tkinter.ttk as ttk
 
+from .energy_source import (
+    is_model_chemistry_step,
+    NO_SOURCE,
+    SEAMM_NEEDS_MODEL_CHEMISTRY,
+    uses_model_chemistry_only,
+)
 from .structure_parameters import StructureParameters
 import seamm
 from seamm_util import ureg, Q_, units_class  # noqa: F401
@@ -137,6 +143,14 @@ class TkStructure(seamm.TkNode):
             namespace=self.namespace,
         )
         self.tk_subflowchart.draw()
+        # Back from the Flowchart tab, the sub-steps may have changed
+        notebook.bind("<<NotebookTabChanged>>", self.reset_dialog, add="+")
+
+        # Where the energy and gradients come from, or that there is nothing to
+        # give them (red)
+        self["energy source"] = ttk.Label(
+            self["frame"], text="", justify=tk.LEFT, wraplength=600
+        )
 
         # Fill in the control parameters
         # Shortcut for parameters
@@ -233,6 +247,22 @@ class TkStructure(seamm.TkNode):
 
         row = 0
 
+        # Where the energy and gradients come from; the Flowchart tab only when
+        # the sub-steps are used
+        text, ok, uses_substeps = self.energy_source_text()
+        notebook = self["notebook"]
+        flowchart_frame = self["flowchart frame"]
+        if uses_substeps:
+            notebook.add(flowchart_frame)  # shows it again if hidden
+        elif notebook.select() != str(flowchart_frame):
+            notebook.hide(flowchart_frame)
+        if text:
+            self["energy source"].configure(
+                text=text, foreground="black" if ok else "red"
+            )
+            self["energy source"].grid(row=row, column=0, sticky=tk.W, pady=5)
+            row += 1
+
         self["structure frame"].grid(row=row, column=0, sticky=tk.EW, pady=10)
         row += 1
         self.reset_structure_frame()
@@ -242,6 +272,68 @@ class TkStructure(seamm.TkNode):
         self.reset_structure_handling_frame()
 
         return row
+
+    def _has_substeps(self):
+        """Whether the subflowchart in the Flowchart tab has a step connected
+        after its start node (the graphical one: it is copied to the step only
+        when the dialog closes)."""
+        try:
+            start = self.tk_subflowchart.get_node("1")
+            return any(
+                edge.edge_type == "execution"
+                for edge in self.tk_subflowchart.edges(start, direction="out")
+            )
+        except Exception:
+            return self.node.subflowchart.get_node("1").next() is not None
+
+    def _upstream_has_model_chemistry(self):
+        """Whether a Model Chemistry step comes before this one. On any error
+        (e.g. the step is not yet linked into the flowchart) False, so the user
+        is told what is needed."""
+        try:
+            return any(is_model_chemistry_step(n) for n in self.previous_nodes())
+        except Exception:
+            return False
+
+    def energy_source_text(self):
+        """Where the optimization's energy and gradients will come from.
+
+        Returns
+        -------
+        (str, bool, bool)
+            The text for the dialog ("" when nothing is optimized), whether it
+            works, and whether the sub-steps (the Flowchart tab) are used.
+        """
+        target = self["target"].get()
+        approach = self["approach"].get()
+        optimizer = self["optimizer"].get()
+        optimizes = (
+            self.is_expr(target) or target in ("minimum", "transition state")
+        ) and (self.is_expr(approach) or approach == "Optimization")
+        if not optimizes:
+            return "", True, False
+        have_mc = self._upstream_has_model_chemistry()
+        if uses_model_chemistry_only(optimizer):
+            if have_mc:
+                return (
+                    "Energy and gradients: from the flowchart's Model Chemistry.",
+                    True,
+                    False,
+                )
+            return SEAMM_NEEDS_MODEL_CHEMISTRY, False, False
+        if self._has_substeps():
+            text = "Energy and gradients: from the sub-steps in the Flowchart tab"
+            if have_mc:
+                text += " (the flowchart's Model Chemistry is not used by this step)"
+            return text + ".", True, True
+        if have_mc:
+            return (
+                "Energy and gradients: from the flowchart's Model Chemistry (or "
+                "put the calculation in the Flowchart tab to use it instead).",
+                True,
+                True,
+            )
+        return NO_SOURCE, False, True
 
     def reset_structure_frame(self, widget=None):
         """Layout the widgets in the structure frame

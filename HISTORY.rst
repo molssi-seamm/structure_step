@@ -1,6 +1,25 @@
 =======
 History
 =======
+2026.11.25.1 -- Every optimizer works from the Model Chemistry
+    * The geomeTRIC (the default) and ASE optimizers now get the energy and gradients
+      from the flowchart's Model Chemistry when the step has no sub-steps: over a warm
+      MDI engine when the program has one here, otherwise as one separate
+      calculation per step. Before, only the SEAMM optimizer could, and the others
+      stopped at the first gradient with "There are no energy and gradients in
+      properties.json".
+    * When the step has sub-steps, they give the energy and gradients, as before; a
+      note says that the flowchart's Model Chemistry is not used by this step.
+    * The SEAMM optimizer also runs over separate calculations when the Model
+      Chemistry has no MDI engine here, rather than stopping.
+    * A Structure step that has nothing to give it energies and gradients -- no Model
+      Chemistry before it and no sub-steps, or the SEAMM optimizer with no Model
+      Chemistry -- is reported by the flowchart check, so the editor's Run,
+      ``seamm-flowchart validate`` and the MCP server stop it before it is queued,
+      and at run time it stops with an error that says what to add.
+    * The dialog says where the energy and gradients come from, in red when there is
+      nothing to give them, and shows the Flowchart tab only when the sub-steps can be
+      used.
 2026.11.25 -- The SEAMM optimizer's minimum check is reported
     * With the SEAMM optimizer and a cheap level, the results now say whether the end
       point is a minimum, its lowest frequency, the saddle escapes and the

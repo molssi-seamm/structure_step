@@ -63,3 +63,70 @@ def test_the_seamm_optimizer_shows_only_its_options(tk_node):
     tk_node["cheap level"].set("xTB:SQM@GFN2-xTB")
     tk_node.reset_dialog()
     assert _shown(tk_node, "check minimum") and not _shown(tk_node, "model hessian")
+
+
+def _tab_hidden(tk_node):
+    return tk_node["notebook"].tab(tk_node["flowchart frame"], "state") == "hidden"
+
+
+def test_energy_source_shown_and_invalid_case_in_red(tk_node, monkeypatch):
+    """No Model Chemistry upstream and no sub-steps: the dialog says so, in red;
+    with a Model Chemistry upstream it says where the gradients come from."""
+    from structure_step.energy_source import NO_SOURCE, SEAMM_NEEDS_MODEL_CHEMISTRY
+
+    tk_node.create_dialog()
+    tk_node["optimizer"].set("geomeTRIC/geomeTRIC")
+    tk_node.reset_dialog()
+    label = tk_node["energy source"]
+    assert _shown(tk_node, "energy source")
+    assert label.cget("text") == NO_SOURCE
+    assert str(label.cget("foreground")) == "red"
+    assert not _tab_hidden(tk_node)  # the place to add the sub-steps
+
+    tk_node["optimizer"].set("SEAMM/SEAMM")
+    tk_node.reset_dialog()
+    assert label.cget("text") == SEAMM_NEEDS_MODEL_CHEMISTRY
+    assert _tab_hidden(tk_node)  # the SEAMM optimizer does not use sub-steps
+
+    monkeypatch.setattr(type(tk_node), "_upstream_has_model_chemistry", lambda s: True)
+    tk_node.reset_dialog()
+    assert "Model Chemistry" in label.cget("text")
+    assert str(label.cget("foreground")) == "black"
+    tk_node["optimizer"].set("BFGS/ASE")
+    tk_node.reset_dialog()
+    assert "from the flowchart's Model Chemistry" in label.cget("text")
+    assert not _tab_hidden(tk_node)
+
+    monkeypatch.setattr(type(tk_node), "_has_substeps", lambda s: True)
+    tk_node.reset_dialog()
+    assert "sub-steps" in label.cget("text")
+    assert "not used by this step" in label.cget("text")
+
+    tk_node["target"].set("stereoisomers")
+    tk_node.reset_dialog()
+    assert not _shown(tk_node, "energy source")
+    assert _tab_hidden(tk_node)
+
+
+def test_upstream_model_chemistry_is_found(tk_node):
+    """A Model Chemistry step connected before the Structure step in the editor."""
+    tk_node.create_dialog()
+    assert not tk_node._upstream_has_model_chemistry()
+    tk_flowchart = tk_node.tk_flowchart
+    try:
+        plugin = tk_flowchart.plugin_manager.get("Model Chemistry")
+    except Exception:
+        pytest.skip("the Model Chemistry step is not installed")
+    flowchart = tk_node.node.flowchart
+    node = flowchart.create_node("Model Chemistry")
+    flowchart.add_node(node)
+    tk_mc = plugin.create_tk_node(
+        tk_flowchart=tk_flowchart, node=node, canvas=tk_flowchart.canvas, x=100, y=10
+    )
+    tk_flowchart.graph.add_node(tk_mc)
+    tk_flowchart.add_edge(tk_mc, tk_node)
+    try:
+        assert tk_node._upstream_has_model_chemistry()
+        assert not tk_node._has_substeps()
+    finally:
+        tk_flowchart.remove_node(tk_mc)
