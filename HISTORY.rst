@@ -1,6 +1,13 @@
 =======
 History
 =======
+2026.11.25 -- The SEAMM optimizer's minimum check is reported
+    * With the SEAMM optimizer and a cheap level, the results now say whether the end
+      point is a minimum, its lowest frequency, the saddle escapes and the
+      cheap-level modes confirmed, and how many cheap-level Hessians were computed;
+      before, the check ran but its verdict was not recorded.
+    * Results no longer carry over from an earlier run of the step, e.g. in a loop.
+
 2026.11.24.1 -- Bugfix: the presets' gradient criteria are in E_h/bohr
     * The convergence presets (Gaussian, NWChem, QChem, Turbomole, Inter-fragment) gave
       the programs' gradient criteria, which are in E_h/bohr, labeled E_h/Å. With
